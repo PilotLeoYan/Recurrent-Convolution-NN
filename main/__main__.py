@@ -10,8 +10,11 @@ def main() -> None:
     parser = create_parser()
     args = vars(parser.parse_args())
     print(args)
-    
-    config = _config()
+
+    if args.get('config', None) is not None:
+        config = _config(args['config'])
+    else:
+        config = _config()
 
     setup_logger(config.get('logger', {}))
     logger = get_logger('RCNN')
@@ -34,9 +37,9 @@ def main() -> None:
     logger.info('__main__.py finished.\n')
 
 
-def _config() -> dict:
+def _config(path: str = r'./config.json') -> dict:
     try:
-        config = load_config(r'./config.json')
+        config = load_config(path)
     except FileNotFoundError:
         print('"config.json" not found. Make sure to have this file in the root of the proyect.')
         sys.exit(1)

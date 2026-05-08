@@ -1,9 +1,33 @@
 {
-    "logger": {
-        "level": "INFO",
-        "log_to_file": true,
-        "log_file": "logs/rcnn.log",
-        "max_bytes": 5242880,
-        "backup_count": 3
+  "fit":{
+    "hidden_channels": 16,
+    "kernel_size": 3,
+    "units": 8,
+    "activation": "relu",
+    "device": "cuda",
+    "lr": 0.001,
+    "weight_decay": 0.01,
+    "split_seq_len": 10,
+    "epochs": 4,
+    "train":{
+      "batch_size": 16,
+      "data_augmentation": true,
+      "n_workers": 4
+    },
+    "valid": {
+      "batch_size": 32,
+      "n_workers": 0
+    },
+    "test": {
+      "batch_size": 32,
+      "n_workers": 0
     }
+  },
+  "logger": {
+    "level": "INFO",
+    "log_to_file": true,
+    "log_file": "logs/rcnn.log",
+    "max_bytes": 5242880,
+    "backup_count": 3
+  }
 }

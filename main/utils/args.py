@@ -24,4 +24,7 @@ def create_parser() -> argparse.ArgumentParser:
         choices=('all', 'rcnn', 'other'),
         default=None)
 
+    parser.add_argument('-c', '--config', help='pass a diferent config.json path.',
+        type=str)
+
     return parser

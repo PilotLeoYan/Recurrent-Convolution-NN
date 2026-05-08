@@ -99,9 +99,18 @@ def _split_dataset(
     test_index = index[n_train + n_valid:]
 
     logger.info('Saving splittings...')
-    np.save(train_path, temp[:, train_index])
-    np.save(valid_path, temp[:, valid_index])
-    np.save(test_path, temp[:, test_index])
+    
+    split = np.ascontiguousarray(temp[:, train_index].transpose(1, 0, 2, 3))
+    np.save(train_path, split)
+    logger.info('"%s" saved.', train_path)
+
+    split = np.ascontiguousarray(temp[:, valid_index].transpose(1, 0, 2, 3))
+    np.save(valid_path, split)
+    logger.info('"%s" saved.', valid_path)
+
+    split = np.ascontiguousarray(temp[:, test_index].transpose(1, 0, 2, 3))
+    np.save(test_path, split)
+    logger.info('"%s" saved.', test_path)
 
 
 def _download_original(

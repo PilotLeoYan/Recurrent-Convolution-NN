@@ -22,14 +22,19 @@ class MovingMNISTDataset(Dataset):
         logger.info('Init MovingMNISTDataset from "%s"', filepath)
 
         self.filepath = filepath
-        self.data = np.load(filepath, mmap_mode='r') # (seq_len, # samples, H, W)
+        self.data = np.load(self.filepath, mmap_mode='r') # (# samples, seq_len, H, W)
         self.transform = transform
 
     def __len__(self):
-        return self.data.shape[1]
+        return self.data.shape[0]
 
     def __getitem__(self, index):
-        sample = torch.from_numpy(self.data[:, index, None]).float() / 255.0 # (seq_len, 1, H, W)
+        sample = (
+            torch.from_numpy(np.array(self.data[index]))
+            .unsqueeze(1)
+            .float()
+            .div_(2550.0)
+        ) # (seq_len, 1, H, W)
         
         if self.transform:
             sample = self.transform(sample)

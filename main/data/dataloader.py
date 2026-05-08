@@ -13,20 +13,11 @@ def make_dataloader(
     dataset: MovingMNISTDataset,
     batch_size: int,
     train: bool = False,
-    *,
-    n_workers: int | None = None
+    n_workers: int = 0,
 ) -> DataLoader:
     """
     """
     logger.info('Init dataloader from "%s"', dataset.filepath)
-    
-    if n_workers is None:
-        import os
-        cpu_count = os.cpu_count()
-
-        assert cpu_count is not None, f'Specify n_workers, cpu_count: {cpu_count}'
-
-        n_workers = min(cpu_count // 2, 8)
 
     return DataLoader(
         dataset,
@@ -34,8 +25,8 @@ def make_dataloader(
         shuffle=train,
         num_workers=n_workers,
         pin_memory=True,
-        persistent_workers=True,
-        prefetch_factor=2,
+        persistent_workers=True if n_workers > 0 else False,
+        prefetch_factor=None if n_workers == 0 else n_workers,
         drop_last=train,
     )
             
