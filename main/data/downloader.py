@@ -7,7 +7,7 @@ import shutil
 
 try:
     from utils.logger import get_logger
-except:
+except ModuleNotFoundError:
     from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -46,10 +46,12 @@ def download_moving_mnist(
         download_data = True
 
     if not download_data:
+        logger.info('Dataset already exists. Omitting download.')
         return train_path, valid_path, test_path
     
     original_path = dest / 'mnist_test_seq.npy'
     original_path.parent.mkdir(parents=True, exist_ok=True)
+
     _download_original(original_path, MOVING_MINST_URL)
     
     _split_dataset(
@@ -63,6 +65,7 @@ def download_moving_mnist(
     if original_path.is_file():
         import os
         os.remove(original_path)
+        logger.info('Remove original dataset "%s"', original_path)
 
     return train_path, valid_path, test_path
 
@@ -78,6 +81,8 @@ def _split_dataset(
 ):
     """
     """
+    logger.info('Splitting dataset...')
+    
     import numpy as np
 
     temp = np.load(original_path, mmap_mode='r')
@@ -93,6 +98,7 @@ def _split_dataset(
     valid_index = index[n_train:n_train + n_valid]
     test_index = index[n_train + n_valid:]
 
+    logger.info('Saving splittings...')
     np.save(train_path, temp[:, train_index])
     np.save(valid_path, temp[:, valid_index])
     np.save(test_path, temp[:, test_index])

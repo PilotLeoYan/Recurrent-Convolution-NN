@@ -12,16 +12,16 @@ def create_parser() -> argparse.ArgumentParser:
     group.add_argument('-t', '--test', help='init all the testing.',
         type=str,
         choices=('all', 'rcnn', 'other'),
-        default='all')
+        default=None)
 
     group.add_argument('-f', '--fit', help='init the fitting.',
         type=str,
         choices=('all', 'rcnn', 'other'),
-        default='all')
+        default=None)
 
     group.add_argument('-ft', '--fit_test', help='init the fitting and then testing.',
         type=str,
         choices=('all', 'rcnn', 'other'),
-        default='all')
+        default=None)
 
     return parser

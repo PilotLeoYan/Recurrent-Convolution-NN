@@ -3,6 +3,13 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
+try:
+    from utils.logger import get_logger
+except ModuleNotFoundError:
+    from ..utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 class MovingMNISTDataset(Dataset):
     def __init__(
@@ -12,6 +19,9 @@ class MovingMNISTDataset(Dataset):
     ):
         """
         """
+        logger.info('Init MovingMNISTDataset from "%s"', filepath)
+
+        self.filepath = filepath
         self.data = np.load(filepath, mmap_mode='r') # (seq_len, # samples, H, W)
         self.transform = transform
 

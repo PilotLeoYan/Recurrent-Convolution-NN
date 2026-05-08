@@ -1,8 +1,16 @@
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
+
+from .dataset import MovingMNISTDataset
+try:
+    from utils.logger import get_logger
+except ModuleNotFoundError:
+    from ..utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def make_dataloader(
-    dataset: Dataset,
+    dataset: MovingMNISTDataset,
     batch_size: int,
     train: bool = False,
     *,
@@ -10,6 +18,8 @@ def make_dataloader(
 ) -> DataLoader:
     """
     """
+    logger.info('Init dataloader from "%s"', dataset.filepath)
+    
     if n_workers is None:
         import os
         cpu_count = os.cpu_count()

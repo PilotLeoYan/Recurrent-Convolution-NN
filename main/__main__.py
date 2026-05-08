@@ -3,11 +3,12 @@ import sys
 from .utils.args import create_parser
 from .utils.json_loader import load_config
 from .utils.logger import get_logger, setup_logger
+from .train.train import train_models
 
 
 def main() -> None:
     parser = create_parser()
-    args = parser.parse_args()
+    args = vars(parser.parse_args())
     print(args)
     
     config = _config()
@@ -15,13 +16,22 @@ def main() -> None:
     setup_logger(config.get('logger', {}))
     logger = get_logger('RCNN')
 
+    logger.info('Running __main__.py')
+
     try:
-        ...
+        if args.get('fit', False):
+            train_models(
+                args=args['fit'],
+                config=config.get('fit', {})
+            )
+            
     except KeyboardInterrupt:
         sys.exit(0)
     except Exception as e:
         logger.error(e, exc_info=True)
         sys.exit(1)
+
+    logger.info('__main__.py finished.\n')
 
 
 def _config() -> dict:
