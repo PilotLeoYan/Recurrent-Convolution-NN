@@ -1,10 +1,12 @@
 import data
 
 
-filepaths = data.download_moving_mnist(remove_original=False)
+filepaths = data.download_moving_mnist()
 print(filepaths)
 
-train_ds = data.MovingMNISTDataset(filepaths[0])
+aug = data.transform()
+
+train_ds = data.MovingMNISTDataset(filepaths[0], transform=aug)
 valid_ds = data.MovingMNISTDataset(filepaths[1])
 test_ds = data.MovingMNISTDataset(filepaths[2])
 print(f'len(train_ds): {len(train_ds)}')

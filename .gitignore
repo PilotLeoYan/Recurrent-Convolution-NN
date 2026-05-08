@@ -1,5 +1,6 @@
 dataset/
 docs/
+logs/
 __pycache__/
 
 *.logs

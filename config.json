@@ -1,0 +1,9 @@
+{
+    "logger": {
+        "level": "INFO",
+        "log_to_file": true,
+        "log_file": "logs/rcnn.log",
+        "max_bytes": 5242880,
+        "backup_count": 3
+    }
+}
