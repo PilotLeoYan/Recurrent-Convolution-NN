@@ -9,54 +9,62 @@ class RCNN2d(nn.Module):
         hidden_channels: int,
         kernel_size: int,
         units: int,
-        activation: str = 'relu',
+        activation: str = "relu",
     ):
         super().__init__()
 
+        self.ichns = input_channels
         self.hchns = hidden_channels
         self.units = units
 
         # init ModuleList with all Conv2d for input
-        self.conv2d_ih = nn.ModuleList([
-            nn.Conv2d(
-                # the first unit receive ci, the rest hi
-                input_channels if u == 0 else self.hchns,
-                self.hchns,
-                kernel_size,
-                padding=kernel_size // 2 # same padding to hold Height, Width
-            )
-            for u in range(self.units)
-        ])
+        self.conv2d_ih = nn.ModuleList(
+            [
+                nn.Conv2d(
+                    # the first unit receive ci, the rest hi
+                    input_channels if u == 0 else self.hchns,
+                    self.hchns,
+                    kernel_size,
+                    padding=kernel_size // 2,  # same padding to hold Height, Width
+                )
+                for u in range(self.units)
+            ]
+        )
 
         # init ModuleList with all Conv2d for hiddens
-        self.conv2d_hh = nn.ModuleList([
-            nn.Conv2d(
-                self.hchns,
-                self.hchns,
-                kernel_size,
-                padding=kernel_size // 2 # same padding to hold Height, Width
-            )
-            for u in range(self.units)
-        ])
+        self.conv2d_hh = nn.ModuleList(
+            [
+                nn.Conv2d(
+                    self.hchns,
+                    self.hchns,
+                    kernel_size,
+                    padding=kernel_size // 2,  # same padding to hold Height, Width
+                )
+                for u in range(self.units)
+            ]
+        )
 
         # init activation function
-        self.acti = nn.ModuleList([
-            nn.ReLU() if activation == 'relu' else nn.Tanh()
-            for u in range(self.units)
-        ])
+        self.acti = nn.ModuleList(
+            [
+                nn.ReLU() if activation == "relu" else nn.Tanh()
+                for u in range(self.units)
+            ]
+        )
 
-    def forward(
-        self, 
-        x: torch.Tensor, 
-        h0: torch.Tensor | None = None
-    ):
+        # maps the hidden state back to the pixel space
+        self.output_proj = nn.Conv2d(self.hchns, self.ichns, kernel_size=1)
+
+    def forward(self, x: torch.Tensor, h0: torch.Tensor | None = None):
         seq_len, batch, c_in, H, W = x.shape
 
         if h0 is None:
-            h = torch.zeros(self.units, batch, self.hchns, H, W,
-                device=x.device)
+            h = [
+                torch.zeros(batch, self.hchns, H, W, device=x.device)
+                for i in range(self.units)
+            ]
         else:
-            h = h0.clone()
+            h = [s.clone() for s in h0.unbind(0)]
 
         outputs = []
 
@@ -69,8 +77,34 @@ class RCNN2d(nn.Module):
                 ih = self.conv2d_ih[u](input_x)
                 hh = self.conv2d_hh[u](h[u])
                 h[u] = self.acti[u](ih + hh)
-                #h[u] = torch.tanh(ih + hh)
 
             outputs.append(h[-1].clone())
 
-        return torch.stack(outputs), h
+        h_out = torch.stack(h) # (units, batch, hchns, H, W)
+        projected = torch.stack([self.output_proj(o) for o in outputs])
+        return projected, h_out
+
+    def decode(
+        self,
+        pred_len: int,
+        last_frame: torch.Tensor,
+        h: torch.Tensor,
+        targets: torch.Tensor | None = None,  # (pred_len, batch, C_in, H, W)
+        teacher_forcing_ratio: float = 0.5,
+    ) -> torch.Tensor:
+        """
+        """
+        predictions = []
+        current = last_frame.unsqueeze(0)  # (1, batch, C_in, H, W)
+
+        for t in range(pred_len):
+            out, h = self.forward(current, h)  # (1, batch, C_in, H, W)
+            pred = out[0]  # (batch, C_in, H, W)
+            predictions.append(pred)
+
+            if targets is not None and torch.rand(1).item() < teacher_forcing_ratio:
+                current = targets[t].unsqueeze(0)  # ground truth
+            else:
+                current = pred.detach().unsqueeze(0)
+
+        return torch.stack(predictions)

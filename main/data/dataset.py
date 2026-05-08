@@ -33,7 +33,7 @@ class MovingMNISTDataset(Dataset):
             torch.from_numpy(np.array(self.data[index]))
             .unsqueeze(1)
             .float()
-            .div_(2550.0)
+            .div_(255.0)
         ) # (seq_len, 1, H, W)
         
         if self.transform:

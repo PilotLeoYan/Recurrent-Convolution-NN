@@ -5,10 +5,12 @@
     "units": 8,
     "activation": "relu",
     "device": "cuda",
-    "lr": 0.001,
+    "lr": 0.002,
     "weight_decay": 0.01,
     "split_seq_len": 10,
     "epochs": 4,
+    "save_best": true,
+    "model_path": "saves/rcnn",
     "train":{
       "batch_size": 16,
       "data_augmentation": true,
