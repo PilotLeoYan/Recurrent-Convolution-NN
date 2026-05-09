@@ -11,6 +11,7 @@ try:
     from models import RCNN2d, predict_rcnn2d, transpose_data, Conv2dGRU, predict_cgru
     from optimizers import get_optimizer
     from utils.logger import get_logger
+    from utils.csv_logger import CSVTrainingLogger
 except ModuleNotFoundError:
     from ..data import (
         MovingMNISTDataset,
@@ -22,6 +23,7 @@ except ModuleNotFoundError:
     from ..models import RCNN2d, predict_rcnn2d, transpose_data, Conv2dGRU, predict_cgru
     from ..optimizers import get_optimizer
     from ..utils.logger import get_logger
+    from ..utils.csv_logger import CSVTrainingLogger
 
 logger = get_logger(__name__)
 
@@ -127,13 +129,19 @@ def _train_models(
     models: list[torch.nn.Module], train_loader, valid_loader, config: dict
 ):
     """
-    """    
+    Trains each model and records per-epoch metrics to a CSV file inside
+    the folder defined by config["csv_log"]["output_dir"]
+    (default: "saves/training_logs").
+    """
+    csv_cfg = config.get("csv_log", {})
+    csv_output_dir: str = csv_cfg.get("output_dir", "saves/training_logs")
+
     for model in models:
         logger.info('Init training of %s', model.name)
-        
+
         best_vloss = torch.inf
         best_epoch = -1
-        
+
         model.to(config["device"])
 
         loss_fn = get_loss_fn()
@@ -141,64 +149,84 @@ def _train_models(
             model.parameters(), lr=config["lr"], weight_decay=config["weight_decay"]
         )
 
-        for epoch in range(config["epochs"]):
-            logger.info("Starting epoch %i", epoch + 1)
+        # ── CSV logger: one file per model per run ─────────────────────
+        with CSVTrainingLogger(
+            output_dir=csv_output_dir,
+            model_name=model.name,
+        ) as csv_log:
 
-            tf_ratio = max(0.0, 1.0 - (epoch / config['epochs'])) # linear decay
+            for epoch in range(config["epochs"]):
+                logger.info("Starting epoch %i", epoch + 1)
 
-            model.train(True)
-            avg_loss = _train_one_epoch(
-                train_loader, optimizer, model, loss_fn, 
-                tf_ratio, config)
+                tf_ratio = max(0.0, 1.0 - (epoch / config['epochs']))  # linear decay
 
-            running_vlos = 0.0
-            model.eval()
-            with torch.no_grad():
-                for i, vbatch in enumerate(valid_loader):
-                    vinputs, vlabels = transpose_data(vbatch, config["split_seq_len"])
-                    vinputs = vinputs.to(config["device"])
-                    vlabels = vlabels.to(config["device"])
+                model.train(True)
+                avg_loss = _train_one_epoch(
+                    train_loader, optimizer, model, loss_fn,
+                    tf_ratio, config)
 
-                    vpredictions = get_prediction(model, vinputs, vlabels, 0.0)
-                    
-                    vloss = loss_fn(vpredictions, vlabels)
-                    running_vlos += vloss
-            avg_vloss = running_vlos / (i + 1) # type: ignore
+                running_vlos = 0.0
+                model.eval()
+                with torch.no_grad():
+                    for i, vbatch in enumerate(valid_loader):
+                        vinputs, vlabels = transpose_data(vbatch, config["split_seq_len"])
+                        vinputs = vinputs.to(config["device"])
+                        vlabels = vlabels.to(config["device"])
 
-            if config['save_best'] and avg_vloss < best_vloss:
-                best_vloss = avg_vloss
-                best_epoch = epoch + 1
-                try:
-                    torch.save({
-                        'epoch': best_epoch,
-                        'model_state_dict': model.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict(),
-                        'loss': loss_fn, # type: ignore
-                    }, config['model_path'] + f'_{model.name}_best')
-                except RuntimeError:
-                    from pathlib import Path
-                    Path(config['model_path']).parent.mkdir(parents=True, exist_ok=True)
+                        vpredictions = get_prediction(model, vinputs, vlabels, 0.0)
 
-                    torch.save({
-                        'epoch': best_epoch,
-                        'model_state_dict': model.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict(),
-                        'loss': loss_fn, # type: ignore
-                    }, config['model_path'] + f'_{model.name}_best')
+                        vloss = loss_fn(vpredictions, vlabels)
+                        running_vlos += vloss
+                avg_vloss = running_vlos / (i + 1)  # type: ignore
 
-            logger.info("Loss: %f, Loss_v: %f", avg_loss, avg_vloss)
+                # Determine whether this epoch is the new best
+                is_best = config['save_best'] and avg_vloss < best_vloss
 
+                if is_best:
+                    best_vloss = avg_vloss
+                    best_epoch = epoch + 1
+                    try:
+                        torch.save({
+                            'epoch': best_epoch,
+                            'model_state_dict': model.state_dict(),
+                            'optimizer_state_dict': optimizer.state_dict(),
+                            'loss': loss_fn,  # type: ignore
+                        }, config['model_path'] + f'_{model.name}_best')
+                    except RuntimeError:
+                        from pathlib import Path
+                        Path(config['model_path']).parent.mkdir(parents=True, exist_ok=True)
+
+                        torch.save({
+                            'epoch': best_epoch,
+                            'model_state_dict': model.state_dict(),
+                            'optimizer_state_dict': optimizer.state_dict(),
+                            'loss': loss_fn,  # type: ignore
+                        }, config['model_path'] + f'_{model.name}_best')
+
+                # ── Write one CSV row for this epoch ───────────────────
+                csv_log.log(
+                    epoch=epoch + 1,
+                    train_loss=avg_loss,
+                    val_loss=float(avg_vloss),
+                    teacher_forcing_ratio=tf_ratio,
+                    learning_rate=config["lr"],
+                    is_best=is_best,
+                )
+
+                logger.info("Loss: %f, Loss_v: %f", avg_loss, avg_vloss)
+
+        # ── Post-training summary / final checkpoint ───────────────────
         if config['save_best']:
             logger.info("Best epoch at %i, Loss_v: %f", best_epoch, best_vloss)
         else:
             from pathlib import Path
             Path(config['model_path']).parent.mkdir(parents=True, exist_ok=True)
-    
+
             torch.save({
-                'epoch': epoch + 1, # type: ignore
+                'epoch': epoch + 1,  # type: ignore
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
-                'loss': loss_fn, # type: ignore
+                'loss': loss_fn,  # type: ignore
             }, config['model_path'] + f'_{model.name}_last')
 
 
