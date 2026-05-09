@@ -11,6 +11,9 @@
     "epochs": 2,
     "save_best": true,
     "model_path": "saves/weights",
+    "csv_log": {
+      "output_dir": "saves/training_logs"
+    },
     "train":{
       "batch_size": 16,
       "data_augmentation": true,
