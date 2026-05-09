@@ -8,7 +8,7 @@ try:
         make_dataloader,
     )
     from losses import get_loss_fn
-    from models import RCNN2d, predict_rcnn2d, transpose_data
+    from models import RCNN2d, predict_rcnn2d, transpose_data, Conv2dGRU, predict_cgru
     from optimizers import get_optimizer
     from utils.logger import get_logger
 except ModuleNotFoundError:
@@ -19,7 +19,7 @@ except ModuleNotFoundError:
         make_dataloader,
     )
     from ..losses import get_loss_fn
-    from ..models import RCNN2d, predict_rcnn2d, transpose_data
+    from ..models import RCNN2d, predict_rcnn2d, transpose_data, Conv2dGRU, predict_cgru
     from ..optimizers import get_optimizer
     from ..utils.logger import get_logger
 
@@ -69,20 +69,29 @@ def train_models(
 
     models: list[torch.nn.Module] = []
 
-    match args:
-        case "rcnn" | "all":
-            models.append(
-                RCNN2d(
-                    input_channels=batch.shape[2],
-                    hidden_channels=config["hidden_channels"],
-                    kernel_size=config["kernel_size"],
-                    units=config["units"],
-                    activation=config["activation"],
-                )
+    if args == 'rcnn' or args == 'all':
+        models.append(
+            RCNN2d(
+                input_channels=batch.shape[2],
+                hidden_channels=config["hidden_channels"],
+                kernel_size=config["kernel_size"],
+                units=config["units"],
+                activation=config["activation"],
             )
-        case _:
-            logger.warning("No available models selected to train.")
-            return
+        )
+    if args == 'cgru' or args == 'all': 
+        models.append(
+            Conv2dGRU(
+                input_channels=batch.shape[2],
+                hidden_channels=config["hidden_channels"],
+                kernel_size=config["kernel_size"],
+                units=config["units"],
+            )
+        )
+
+    if len(models) == 0:
+        logger.warning("No available models selected to train.")
+        return
 
     _train_models(models, dataloaders[0], dataloaders[1], config)
 
@@ -118,11 +127,13 @@ def _train_models(
     models: list[torch.nn.Module], train_loader, valid_loader, config: dict
 ):
     """
-    """
-    best_vloss = torch.inf
-    best_epoch = -1
-    
+    """    
     for model in models:
+        logger.info('Init training of %s', model.name)
+        
+        best_vloss = torch.inf
+        best_epoch = -1
+        
         model.to(config["device"])
 
         loss_fn = get_loss_fn()
@@ -133,8 +144,12 @@ def _train_models(
         for epoch in range(config["epochs"]):
             logger.info("Starting epoch %i", epoch + 1)
 
+            tf_ratio = max(0.0, 1.0 - (epoch / config['epochs'])) # linear decay
+
             model.train(True)
-            avg_loss = _train_one_epoch(train_loader, optimizer, model, loss_fn, config)
+            avg_loss = _train_one_epoch(
+                train_loader, optimizer, model, loss_fn, 
+                tf_ratio, config)
 
             running_vlos = 0.0
             model.eval()
@@ -144,12 +159,7 @@ def _train_models(
                     vinputs = vinputs.to(config["device"])
                     vlabels = vlabels.to(config["device"])
 
-                    vpredictions = predict_rcnn2d(
-                        model, # type: ignore
-                        vinputs, 
-                        vlabels,
-                        teacher_forcing_ratio=0.0
-                    )
+                    vpredictions = get_prediction(model, vinputs, vlabels, 0.0)
                     
                     vloss = loss_fn(vpredictions, vlabels)
                     running_vlos += vloss
@@ -164,7 +174,7 @@ def _train_models(
                         'model_state_dict': model.state_dict(),
                         'optimizer_state_dict': optimizer.state_dict(),
                         'loss': loss_fn, # type: ignore
-                    }, config['model_path'] + '_best')
+                    }, config['model_path'] + f'_{model.name}_best')
                 except RuntimeError:
                     from pathlib import Path
                     Path(config['model_path']).parent.mkdir(parents=True, exist_ok=True)
@@ -174,7 +184,7 @@ def _train_models(
                         'model_state_dict': model.state_dict(),
                         'optimizer_state_dict': optimizer.state_dict(),
                         'loss': loss_fn, # type: ignore
-                    }, config['model_path'] + '_best')
+                    }, config['model_path'] + f'_{model.name}_best')
 
             logger.info("Loss: %f, Loss_v: %f", avg_loss, avg_vloss)
 
@@ -189,7 +199,7 @@ def _train_models(
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': loss_fn, # type: ignore
-            }, config['model_path'] + '_last')
+            }, config['model_path'] + f'_{model.name}_last')
 
 
 def _train_one_epoch(
@@ -197,6 +207,7 @@ def _train_one_epoch(
     optimizer,
     model,
     loss_fn,
+    teacher_forcing_ratio: float,
     config: dict,
 ) -> float:
     """ """
@@ -209,16 +220,40 @@ def _train_one_epoch(
 
         optimizer.zero_grad()
 
-        predictions = predict_rcnn2d(
-            model, # type: ignore
-            inputs, 
-            labels,
-            teacher_forcing_ratio=0.5
-        ) # (10, batch, 1, H, W)
+        predictions = get_prediction(model, inputs, labels, teacher_forcing_ratio)
 
         loss = loss_fn(predictions, labels)
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0) # gradient clipping
         optimizer.step()
         running_loss += loss.item()
 
     return running_loss / (i + 1) # type: ignore
+
+
+def get_prediction(
+    model,
+    inputs: torch.Tensor,
+    labels: torch.Tensor,
+    teacher_forcing_ratio: float,
+) -> torch.Tensor:
+    """ """
+    if isinstance(model, RCNN2d): 
+        predictions = predict_rcnn2d(
+            model, # type: ignore
+            inputs, 
+            labels,
+            teacher_forcing_ratio=teacher_forcing_ratio,
+        )
+    elif isinstance(model, Conv2dGRU):
+        predictions = predict_cgru(
+            model, # type: ignore
+            inputs, 
+            labels,
+            teacher_forcing_ratio=teacher_forcing_ratio,
+        )
+    else:
+        logger.error('Not specific predict_model available')
+        raise 
+
+    return predictions # (10, batch, 1, H, W)

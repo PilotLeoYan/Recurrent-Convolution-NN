@@ -13,6 +13,7 @@ class RCNN2d(nn.Module):
     ):
         super().__init__()
 
+        self.name = 'rcnn2d'
         self.ichns = input_channels
         self.hchns = hidden_channels
         self.units = units
@@ -56,7 +57,10 @@ class RCNN2d(nn.Module):
         )
 
         # maps the hidden state back to the pixel space
-        self.output_proj = nn.Conv2d(self.hchns, self.ichns, kernel_size=1)
+        self.output_proj = nn.Sequential(
+            nn.Conv2d(self.hchns, self.ichns, kernel_size=1),
+            nn.Sigmoid(),
+        )
 
     def forward(self, x: torch.Tensor, h0: torch.Tensor | None = None):
         seq_len, batch, c_in, H, W = x.shape
@@ -97,7 +101,7 @@ class RCNN2d(nn.Module):
         last_frame: torch.Tensor,
         h: torch.Tensor,
         targets: torch.Tensor | None = None,  # (pred_len, batch, C_in, H, W)
-        teacher_forcing_ratio: float = 0.5,
+        teacher_forcing_ratio: float = 0.0,
     ) -> torch.Tensor:
         """
         """
@@ -130,6 +134,6 @@ def predict_rcnn2d(
         pred_len=labels.shape[0],
         last_frame=inputs[-1],
         h=h,
-        targets=None,
+        targets=labels,
         teacher_forcing_ratio=kwargs['teacher_forcing_ratio'],
     )

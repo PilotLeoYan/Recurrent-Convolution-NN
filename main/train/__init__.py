@@ -1,6 +1,7 @@
-from .train import train_models
+from .train import train_models, get_prediction
 
 
 __all__ = [
-    'train_models'
+    'train_models',
+    'get_prediction',
 ]

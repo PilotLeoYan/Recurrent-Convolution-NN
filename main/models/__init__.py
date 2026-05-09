@@ -1,5 +1,6 @@
 import torch
 from .rcnn import RCNN2d, predict_rcnn2d
+from .cgru import Conv2dGRU, predict_cgru
 
 
 def transpose_data(
@@ -16,5 +17,7 @@ def transpose_data(
     
 __all__ = [
     'RCNN2d',
-    'predict_rcnn2d'
+    'predict_rcnn2d',
+    'Conv2dGRU',
+    'predict_cgru',
 ]

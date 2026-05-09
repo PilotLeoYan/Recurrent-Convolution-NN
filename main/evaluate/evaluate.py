@@ -3,10 +3,12 @@ import torch
 try:
     from data import MovingMNISTDataset, download_moving_mnist, make_dataloader
     from models import RCNN2d, predict_rcnn2d, transpose_data
+    from train import get_prediction
     from utils.logger import get_logger
 except ModuleNotFoundError:
     from ..data import MovingMNISTDataset, download_moving_mnist, make_dataloader
     from ..models import RCNN2d, predict_rcnn2d, transpose_data
+    from ..train import get_prediction
     from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -21,6 +23,7 @@ def eval_models(config: dict) -> None:
     test_loader = _load_test(config)
 
     logger.info('Loading model from "%s"', config['model_path'])
+    
     model, loss_fn = _load_model(next(iter(test_loader)), config)
     model.to(config["device"])
     model.eval()
@@ -32,11 +35,8 @@ def eval_models(config: dict) -> None:
             inputs = inputs.to(config["device"])
             labels = labels.to(config["device"])
 
-            predictions = predict_rcnn2d(
-                model,  # type: ignore
-                inputs,
-                labels,
-                teacher_forcing_ratio=0.0,
+            predictions = get_prediction(
+                model, inputs, labels, teacher_forcing_ratio=0.0,
             )
 
             loss = loss_fn(predictions, labels)

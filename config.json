@@ -10,7 +10,7 @@
     "split_seq_len": 10,
     "epochs": 2,
     "save_best": true,
-    "model_path": "saves/rcnn",
+    "model_path": "saves/weights",
     "train":{
       "batch_size": 16,
       "data_augmentation": true,

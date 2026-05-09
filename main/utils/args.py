@@ -11,17 +11,17 @@ def create_parser() -> argparse.ArgumentParser:
     # not used yet
     group.add_argument('-t', '--test', help='init all the testing.',
         type=str,
-        choices=('all', 'rcnn', 'other'),
+        choices=('all', 'rcnn', 'cgru'),
         default=None)
 
     group.add_argument('-f', '--fit', help='init the fitting.',
         type=str,
-        choices=('all', 'rcnn', 'other'),
+        choices=('all', 'rcnn', 'cgru'),
         default=None)
 
     group.add_argument('-ft', '--fit_test', help='init the fitting and then testing.',
         type=str,
-        choices=('all', 'rcnn', 'other'),
+        choices=('all', 'rcnn', 'cgru'),
         default=None)
 
     parser.add_argument('-c', '--config', help='pass a diferent config.json path.',
