@@ -44,6 +44,9 @@ class RCNN2d(nn.Module):
             ]
         )
 
+        # init all dropout layers
+        self.drops = nn.ModuleList([nn.Dropout(p=0.2) for u in range(self.units - 1)])
+
         # init activation function
         self.acti = nn.ModuleList(
             [
@@ -60,7 +63,7 @@ class RCNN2d(nn.Module):
 
         if h0 is None:
             h = [
-                torch.zeros(batch, self.hchns, H, W, device=x.device)
+                torch.zeros(batch, self.hchns, H, W, device=x.device) # type: ignore
                 for i in range(self.units)
             ]
         else:
@@ -76,7 +79,11 @@ class RCNN2d(nn.Module):
 
                 ih = self.conv2d_ih[u](input_x)
                 hh = self.conv2d_hh[u](h[u])
-                h[u] = self.acti[u](ih + hh)
+
+                if u < self.units - 1:
+                    h[u] = self.acti[u](self.drops[u](ih + hh))
+                else:
+                    h[u] = self.acti[u](ih + hh)
 
             outputs.append(h[-1].clone())
 
@@ -108,3 +115,21 @@ class RCNN2d(nn.Module):
                 current = pred.detach().unsqueeze(0)
 
         return torch.stack(predictions)
+
+
+def predict_rcnn2d(
+    model: RCNN2d,
+    inputs: torch.Tensor,
+    labels: torch.Tensor,
+    **kwargs
+) -> torch.Tensor:
+    """
+    """
+    _, h = model(inputs)
+    return model.decode(
+        pred_len=labels.shape[0],
+        last_frame=inputs[-1],
+        h=h,
+        targets=None,
+        teacher_forcing_ratio=kwargs['teacher_forcing_ratio'],
+    )

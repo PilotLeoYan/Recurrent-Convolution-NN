@@ -8,7 +8,7 @@ try:
         make_dataloader,
     )
     from losses import get_loss_fn
-    from models import RCNN2d
+    from models import RCNN2d, predict_rcnn2d, transpose_data
     from optimizers import get_optimizer
     from utils.logger import get_logger
 except ModuleNotFoundError:
@@ -19,7 +19,7 @@ except ModuleNotFoundError:
         make_dataloader,
     )
     from ..losses import get_loss_fn
-    from ..models import RCNN2d
+    from ..models import RCNN2d, predict_rcnn2d, transpose_data
     from ..optimizers import get_optimizer
     from ..utils.logger import get_logger
 
@@ -92,14 +92,11 @@ def _load_dataloader(config: dict) -> tuple:
     paths = download_moving_mnist()
 
     aug = None
-    # if config.get('train', {}).get('data_augmentation', False):
     if config["train"]["data_augmentation"]:
         aug = augmentation()
 
     train_ds = MovingMNISTDataset(paths[0], transform=aug)
-
     valid_ds = MovingMNISTDataset(paths[1])
-    test_ds = MovingMNISTDataset(paths[2])
 
     train_dl = make_dataloader(
         train_ds,
@@ -114,13 +111,7 @@ def _load_dataloader(config: dict) -> tuple:
         n_workers=config["valid"]["n_workers"],
     )
 
-    test_dl = make_dataloader(
-        test_ds,
-        batch_size=config["test"]["batch_size"],
-        n_workers=config["test"]["n_workers"],
-    )
-
-    return train_dl, valid_dl, test_dl
+    return train_dl, valid_dl
 
 
 def _train_models(
@@ -149,21 +140,20 @@ def _train_models(
             model.eval()
             with torch.no_grad():
                 for i, vbatch in enumerate(valid_loader):
-                    vinputs, vlabels = _transpose_data(vbatch, config["split_seq_len"])
+                    vinputs, vlabels = transpose_data(vbatch, config["split_seq_len"])
                     vinputs = vinputs.to(config["device"])
                     vlabels = vlabels.to(config["device"])
 
-                    _, h = model(vinputs)
-                    vpredictions = model.decode(
-                        pred_len=vlabels.shape[0],
-                        last_frame=vinputs[-1],
-                        h=h,
-                        targets=None,
-                        teacher_forcing_ratio=0.0,
+                    vpredictions = predict_rcnn2d(
+                        model, # type: ignore
+                        vinputs, 
+                        vlabels,
+                        teacher_forcing_ratio=0.0
                     )
+                    
                     vloss = loss_fn(vpredictions, vlabels)
                     running_vlos += vloss
-            avg_vloss = running_vlos / (i + 1)
+            avg_vloss = running_vlos / (i + 1) # type: ignore
 
             if config['save_best'] and avg_vloss < best_vloss:
                 best_vloss = avg_vloss
@@ -173,7 +163,7 @@ def _train_models(
                         'epoch': best_epoch,
                         'model_state_dict': model.state_dict(),
                         'optimizer_state_dict': optimizer.state_dict(),
-                        'loss': avg_vloss,
+                        'loss': loss_fn, # type: ignore
                     }, config['model_path'] + '_best')
                 except RuntimeError:
                     from pathlib import Path
@@ -183,7 +173,7 @@ def _train_models(
                         'epoch': best_epoch,
                         'model_state_dict': model.state_dict(),
                         'optimizer_state_dict': optimizer.state_dict(),
-                        'loss': avg_vloss,
+                        'loss': loss_fn, # type: ignore
                     }, config['model_path'] + '_best')
 
             logger.info("Loss: %f, Loss_v: %f", avg_loss, avg_vloss)
@@ -195,10 +185,10 @@ def _train_models(
             Path(config['model_path']).parent.mkdir(parents=True, exist_ok=True)
     
             torch.save({
-                'epoch': epoch + 1,
+                'epoch': epoch + 1, # type: ignore
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
-                'loss': avg_vloss,
+                'loss': loss_fn, # type: ignore
             }, config['model_path'] + '_last')
 
 
@@ -213,37 +203,22 @@ def _train_one_epoch(
     running_loss = 0.0
 
     for i, batch in enumerate(training_loader):
-        inputs, labels = _transpose_data(batch, config["split_seq_len"])
+        inputs, labels = transpose_data(batch, config["split_seq_len"])
         inputs = inputs.to(config["device"])
         labels = labels.to(config["device"])
 
         optimizer.zero_grad()
 
-        _, h = model(inputs)  # encoder
-
-        predictions = model.decode(
-            pred_len=labels.shape[0],
-            last_frame=inputs[-1],
-            h=h,
-            targets=labels,
-            teacher_forcing_ratio=0.5,
-        )  # (10, batch, 1, H, W)
+        predictions = predict_rcnn2d(
+            model, # type: ignore
+            inputs, 
+            labels,
+            teacher_forcing_ratio=0.5
+        ) # (10, batch, 1, H, W)
 
         loss = loss_fn(predictions, labels)
         loss.backward()
         optimizer.step()
         running_loss += loss.item()
 
-    return running_loss / (i + 1)
-
-
-def _transpose_data(
-    batch: torch.Tensor,
-    split: int,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """
-    Returns inputs, labels
-    """
-    # from (# samples, seq_len, C_in, H, W) -> (seq_len, # samples, C_in, H, W)
-    batch = batch.clone().transpose(0, 1)
-    return batch[:split], batch[split:]
+    return running_loss / (i + 1) # type: ignore

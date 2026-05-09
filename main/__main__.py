@@ -4,12 +4,12 @@ from .utils.args import create_parser
 from .utils.json_loader import load_config
 from .utils.logger import get_logger, setup_logger
 from .train.train import train_models
+from .evaluate import eval_models
 
 
 def main() -> None:
     parser = create_parser()
     args = vars(parser.parse_args())
-    print(args)
 
     if args.get('config', None) is not None:
         config = _config(args['config'])
@@ -26,6 +26,18 @@ def main() -> None:
             train_models(
                 args=args['fit'],
                 config=config.get('fit', {})
+            )
+        elif args.get('test', False):
+            eval_models(
+                config=config.get('eval', {})
+            )
+        elif args.get('fit_test', False):
+            train_models(
+                args=args['fit'],
+                config=config.get('fit', {})
+            )
+            eval_models(
+                config=config.get('eval', {})
             )
             
     except KeyboardInterrupt:
