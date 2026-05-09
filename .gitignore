@@ -1,7 +1,8 @@
 dataset/
 docs/
 logs/
-saves/
+saves/weights*/
+saves/training_logs/*.csv
 __pycache__/
 
 *.logs
