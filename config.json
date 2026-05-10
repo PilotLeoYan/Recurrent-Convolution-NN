@@ -1,5 +1,5 @@
 {
-  "fit":{
+  "fit": {
     "hidden_channels": 16,
     "kernel_size": 3,
     "units": 8,
@@ -11,7 +11,10 @@
     "epochs": 2,
     "save_best": true,
     "model_path": "saves/weights",
-    "train":{
+    "csv_log": {
+      "output_dir": "saves/training_logs"
+    },
+    "train": {
       "batch_size": 16,
       "data_augmentation": true,
       "n_workers": 4
@@ -25,8 +28,8 @@
       "n_workers": 0
     }
   },
-  "eval":{
-    "model_path": "saves/rcnn_best",
+  "eval": {
+    "model_path": "saves/weights_rcnn2d_best",
     "batch_size": 32,
     "n_workers": 0,
     "hidden_channels": 16,
