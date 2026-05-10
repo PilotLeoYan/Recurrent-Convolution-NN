@@ -42,7 +42,7 @@ class CSVTrainingLogger:
         self._writer.writeheader()
         self._file.flush()
 
-        logger.info("CSV training log → %s", self._path)
+        logger.info("CSV training log -> %s", self._path)
 
     # ------------------------------------------------------------------
     def log(
@@ -73,7 +73,7 @@ class CSVTrainingLogger:
         if not self._file.closed:
             self._file.flush()
             self._file.close()
-            logger.info("CSV log closed → %s", self._path)
+            logger.info("CSV log closed -> %s", self._path)
 
     # ------------------------------------------------------------------
     @property
