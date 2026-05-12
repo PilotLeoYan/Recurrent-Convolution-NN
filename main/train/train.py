@@ -232,7 +232,7 @@ def _train_models(
                             'optimizer_state_dict': optimizer.state_dict(),
                             'loss': loss_fn,  # type: ignore
                         }, config['model_path'] + f'_{model.name}_best.pth')
-                    except RuntimeError:
+                    except FileNotFoundError:
                         from pathlib import Path
                         Path(config['model_path']).parent.mkdir(parents=True, exist_ok=True)
 
