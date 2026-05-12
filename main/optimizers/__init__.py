@@ -15,6 +15,21 @@ def get_optimizer(
     )
 
 
+def get_lr_scheduler(
+    optimizer,
+    step_size: int,
+    gamma: float
+):
+    """
+    """
+    return optim.lr_scheduler.StepLR(
+        optimizer,
+        step_size=step_size,
+        gamma=gamma
+    )
+
+
 __all__ = [
-    'get_optimizer'
+    'get_optimizer',
+    'get_lr_scheduler',
 ]

@@ -17,7 +17,7 @@ try:
         CNN,
         predict_cnn,
     )
-    from optimizers import get_optimizer
+    from optimizers import get_optimizer, get_lr_scheduler
     from utils.logger import get_logger
     from utils.csv_logger import CSVTrainingLogger
 except ModuleNotFoundError:
@@ -37,7 +37,7 @@ except ModuleNotFoundError:
         CNN,
         predict_cnn,
     )
-    from ..optimizers import get_optimizer
+    from ..optimizers import get_optimizer, get_lr_scheduler
     from ..utils.logger import get_logger
     from ..utils.csv_logger import CSVTrainingLogger
 
@@ -173,6 +173,7 @@ def _train_models(
         optimizer = get_optimizer(
             model.parameters(), lr=config["lr"], weight_decay=config["weight_decay"]
         )
+        lr_scheduler = get_lr_scheduler(optimizer, config['lr_scheduler']['step_size'], config['lr_scheduler']['gamma'])
 
         # ── CSV logger: one file per model per run ─────────────────────
         with CSVTrainingLogger(
@@ -187,8 +188,8 @@ def _train_models(
 
                 model.train(True)
                 avg_loss = _train_one_epoch(
-                    train_loader, optimizer, model, loss_fn,
-                    tf_ratio, config)
+                    train_loader, optimizer, model,
+                    loss_fn, tf_ratio, config)
 
                 running_vlos = 0.0
                 model.eval()
@@ -204,6 +205,8 @@ def _train_models(
                         running_vlos += vloss
                 avg_vloss = running_vlos / (i + 1)  # type: ignore
 
+                lr_scheduler.step() # use .step() always after of valid step.
+
                 # Determine whether this epoch is the new best
                 is_best = config['save_best'] and avg_vloss < best_vloss
 
@@ -216,7 +219,7 @@ def _train_models(
                             'model_state_dict': model.state_dict(),
                             'optimizer_state_dict': optimizer.state_dict(),
                             'loss': loss_fn,  # type: ignore
-                        }, config['model_path'] + f'_{model.name}_best')
+                        }, config['model_path'] + f'_{model.name}_best.pth')
                     except RuntimeError:
                         from pathlib import Path
                         Path(config['model_path']).parent.mkdir(parents=True, exist_ok=True)
@@ -226,7 +229,7 @@ def _train_models(
                             'model_state_dict': model.state_dict(),
                             'optimizer_state_dict': optimizer.state_dict(),
                             'loss': loss_fn,  # type: ignore
-                        }, config['model_path'] + f'_{model.name}_best')
+                        }, config['model_path'] + f'_{model.name}_best.pth')
 
                 # ── Write one CSV row for this epoch ───────────────────
                 csv_log.log(
@@ -234,7 +237,7 @@ def _train_models(
                     train_loss=avg_loss,
                     val_loss=float(avg_vloss),
                     teacher_forcing_ratio=tf_ratio,
-                    learning_rate=config["lr"],
+                    learning_rate=optimizer.param_groups[0]['lr'],
                     is_best=is_best,
                 )
 
@@ -252,7 +255,7 @@ def _train_models(
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': loss_fn,  # type: ignore
-            }, config['model_path'] + f'_{model.name}_last')
+            }, config['model_path'] + f'_{model.name}_last.pth')
 
 
 def _train_one_epoch(
