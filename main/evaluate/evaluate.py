@@ -23,7 +23,7 @@ def eval_models(config: dict) -> None:
     test_loader = _load_test(config)
 
     logger.info('Loading model from "%s"', config['model_path'])
-    
+
     model, loss_fn = _load_model(next(iter(test_loader)), config)
     model.to(config["device"])
     model.eval()
@@ -40,7 +40,7 @@ def eval_models(config: dict) -> None:
             )
 
             loss = loss_fn(predictions, labels)
-            running_loss += loss
+            running_loss += loss.item()
     avg_loss = running_loss / (i + 1)  # type: ignore
     logger.info("Test loss: %f", avg_loss)
 

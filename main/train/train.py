@@ -214,7 +214,7 @@ def _train_models(
                         vpredictions = get_prediction(model, vinputs, vlabels, 0.0)
 
                         vloss = loss_fn(vpredictions, vlabels)
-                        running_vlos += vloss
+                        running_vlos += vloss.item()
                 avg_vloss = running_vlos / (i + 1)  # type: ignore
 
                 lr_scheduler.step() # use .step() always after of valid step.
