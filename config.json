@@ -26,7 +26,8 @@
     "test": {
       "batch_size": 32,
       "n_workers": 0
-    }
+    },
+    "hidden_size_rnn": 256
   },
   "eval": {
     "model_path": "saves/weights_rcnn2d_best",
