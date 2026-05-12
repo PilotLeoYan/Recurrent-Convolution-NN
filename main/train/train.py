@@ -161,7 +161,8 @@ def _train_models(
     csv_cfg = config.get("csv_log", {})
     csv_output_dir: str = csv_cfg.get("output_dir", "saves/training_logs")
 
-    lr_sched_cfg = config.get("", {})
+    lr_sched_cfg = config.get('lr_scheduler', {})
+
     sched_type   = lr_sched_cfg.get("type", "cosine")
 
     for model in models:

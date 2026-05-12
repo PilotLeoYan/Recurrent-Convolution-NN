@@ -41,7 +41,7 @@ def get_lr_scheduler(
             gamma=gamma,
         )
 
-    raise ValueError(f"scheduler_type '{scheduler_type}' no reconocido. Usa 'cosine' o 'step'.")
+    raise ValueError(f"scheduler_type '{scheduler_type}' not recognized. Use 'cosine' or 'step'.")
 
 
 
