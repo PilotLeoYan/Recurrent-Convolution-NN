@@ -110,6 +110,10 @@ class RCNN2d(nn.Module):
 
         for t in range(pred_len):
             out, h = self.forward(current, h)  # (1, batch, C_in, H, W)
+
+            # gradient clipping in the hidden state between time steps
+            h = h.detach()
+
             pred = out[0]  # (batch, C_in, H, W)
             predictions.append(pred)
 

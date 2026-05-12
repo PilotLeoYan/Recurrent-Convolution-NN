@@ -161,7 +161,8 @@ def _train_models(
     csv_cfg = config.get("csv_log", {})
     csv_output_dir: str = csv_cfg.get("output_dir", "saves/training_logs")
 
-    lr_sched_cfg = config.get("", {})
+    lr_sched_cfg = config.get('lr_scheduler', {})
+
     sched_type   = lr_sched_cfg.get("type", "cosine")
 
     for model in models:
@@ -213,7 +214,7 @@ def _train_models(
                         vpredictions = get_prediction(model, vinputs, vlabels, 0.0)
 
                         vloss = loss_fn(vpredictions, vlabels)
-                        running_vlos += vloss
+                        running_vlos += vloss.item()
                 avg_vloss = running_vlos / (i + 1)  # type: ignore
 
                 lr_scheduler.step() # use .step() always after of valid step.
@@ -231,7 +232,7 @@ def _train_models(
                             'optimizer_state_dict': optimizer.state_dict(),
                             'loss': loss_fn,  # type: ignore
                         }, config['model_path'] + f'_{model.name}_best.pth')
-                    except RuntimeError:
+                    except FileNotFoundError:
                         from pathlib import Path
                         Path(config['model_path']).parent.mkdir(parents=True, exist_ok=True)
 
