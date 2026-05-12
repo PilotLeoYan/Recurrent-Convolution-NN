@@ -27,9 +27,10 @@
       "batch_size": 32,
       "n_workers": 0
     },
-    "lr_scheduler":{
-      "step_size": 1,
-      "gamma": 0.2
+    "lr_scheduler": {
+      "type": "cosine",
+      "T_max": 20,
+      "eta_min": 0.000001
     }
   },
   "eval": {

@@ -161,6 +161,9 @@ def _train_models(
     csv_cfg = config.get("csv_log", {})
     csv_output_dir: str = csv_cfg.get("output_dir", "saves/training_logs")
 
+    lr_sched_cfg = config.get("", {})
+    sched_type   = lr_sched_cfg.get("type", "cosine")
+
     for model in models:
         logger.info('Init training of %s', model.name)
 
@@ -173,7 +176,15 @@ def _train_models(
         optimizer = get_optimizer(
             model.parameters(), lr=config["lr"], weight_decay=config["weight_decay"]
         )
-        lr_scheduler = get_lr_scheduler(optimizer, config['lr_scheduler']['step_size'], config['lr_scheduler']['gamma'])
+
+        lr_scheduler = get_lr_scheduler(
+            optimizer,
+            scheduler_type=sched_type,
+            step_size=lr_sched_cfg.get("step_size", 3),
+            gamma=lr_sched_cfg.get("gamma", 0.5),
+            T_max=lr_sched_cfg.get("T_max", config["epochs"]),
+            eta_min=lr_sched_cfg.get("eta_min", 1e-6),
+        )
 
         # ── CSV logger: one file per model per run ─────────────────────
         with CSVTrainingLogger(

@@ -17,16 +17,32 @@ def get_optimizer(
 
 def get_lr_scheduler(
     optimizer,
-    step_size: int,
-    gamma: float
+    scheduler_type: str = "cosine",
+    # StepLR params
+    step_size: int = 5,
+    gamma: float = 0.5,
+    # CosineAnnealingLR params
+    T_max: int = 10,
+    eta_min: float = 1e-6,
 ):
+
     """
     """
-    return optim.lr_scheduler.StepLR(
-        optimizer,
-        step_size=step_size,
-        gamma=gamma
-    )
+    if scheduler_type == "cosine":
+        return optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=T_max,
+            eta_min=eta_min,
+        )
+    elif scheduler_type == "step":
+        return optim.lr_scheduler.StepLR(
+            optimizer,
+            step_size=step_size,
+            gamma=gamma,
+        )
+
+    raise ValueError(f"scheduler_type '{scheduler_type}' no reconocido. Usa 'cosine' o 'step'.")
+
 
 
 __all__ = [

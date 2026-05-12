@@ -12,7 +12,9 @@ def transpose_data(
     Returns inputs, labels
     (# samples, seq_len, C_in, H, W) -> (seq_len, # samples, C_in, H, W)
     """
-    batch = batch.clone().transpose(0, 1)
+    # .contiguous() to ensure a contiguous memory layout
+    # without introducing spurious nodes into the graph
+    batch = batch.transpose(0, 1).contiguous()
     return batch[:split], batch[split:]
 
 

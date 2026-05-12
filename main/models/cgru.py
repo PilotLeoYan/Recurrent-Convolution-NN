@@ -74,10 +74,11 @@ class Conv2dGRU(nn.Module):
             for u in range(self.units):
                 inp = x[t] if u == 0 else h[u - 1]
                 h[u] = self._gru_cell(inp, h[u], u)
-                
+
                 if u < self.units - 1:
                     h[u] = self.drops[u](h[u])
-                outputs.append(h[-1].clone())
+
+            outputs.append(h[-1].clone()) # outside of foreach of units
 
         h_out = torch.stack(h) # (units, batch, hchns, H, W)
         projected = torch.stack([self.output_proj(o) for o in outputs])
