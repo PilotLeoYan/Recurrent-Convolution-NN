@@ -8,7 +8,15 @@ try:
         make_dataloader,
     )
     from losses import get_loss_fn
-    from models import RCNN2d, predict_rcnn2d, transpose_data, Conv2dGRU, predict_cgru
+    from models import (
+        RCNN2d,
+        predict_rcnn2d,
+        transpose_data,
+        Conv2dGRU,
+        predict_cgru,
+        CNN,
+        predict_cnn,
+    )
     from optimizers import get_optimizer, get_lr_scheduler
     from utils.logger import get_logger
     from utils.csv_logger import CSVTrainingLogger
@@ -20,7 +28,15 @@ except ModuleNotFoundError:
         make_dataloader,
     )
     from ..losses import get_loss_fn
-    from ..models import RCNN2d, predict_rcnn2d, transpose_data, Conv2dGRU, predict_cgru
+    from ..models import (
+        RCNN2d,
+        predict_rcnn2d,
+        transpose_data,
+        Conv2dGRU,
+        predict_cgru,
+        CNN,
+        predict_cnn,
+    )
     from ..optimizers import get_optimizer, get_lr_scheduler
     from ..utils.logger import get_logger
     from ..utils.csv_logger import CSVTrainingLogger
@@ -84,6 +100,15 @@ def train_models(
     if args == 'cgru' or args == 'all':
         models.append(
             Conv2dGRU(
+                input_channels=batch.shape[2],
+                hidden_channels=config["hidden_channels"],
+                kernel_size=config["kernel_size"],
+                units=config["units"],
+            )
+        )
+    if args == 'cnn' or args == 'all':
+        models.append(
+            CNN(
                 input_channels=batch.shape[2],
                 hidden_channels=config["hidden_channels"],
                 kernel_size=config["kernel_size"],
@@ -283,8 +308,15 @@ def get_prediction(
             labels,
             teacher_forcing_ratio=teacher_forcing_ratio,
         )
+    elif isinstance(model, CNN):
+        predictions = predict_cnn(
+            model,  # type: ignore
+            inputs,
+            labels,
+            teacher_forcing_ratio=teacher_forcing_ratio,
+        )
     else:
         logger.error('Not specific predict_model available')
         raise
 
-    return predictions # (10, batch, 1, H, W)
+    return predictions  # (pred_len, batch, 1, H, W)
