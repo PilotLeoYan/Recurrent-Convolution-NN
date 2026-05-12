@@ -187,16 +187,41 @@ def _train_models(
             eta_min=lr_sched_cfg.get("eta_min", 1e-6),
         )
 
+        running_vlos = [0.0, 0.0]
+        model.eval()
+        with torch.no_grad():
+            for j, loader in enumerate((train_loader, valid_loader)):
+                for i, vbatch in enumerate(loader):
+                    vinputs, vlabels = transpose_data(vbatch, config["split_seq_len"])
+                    vinputs = vinputs.to(config["device"])
+                    vlabels = vlabels.to(config["device"])
+
+                    vpredictions = get_prediction(model, vinputs, vlabels, 0.0)
+
+                    vloss = loss_fn(vpredictions, vlabels)
+                    running_vlos[j] += vloss.item()
+                running_vlos[j] = running_vlos[j] / (i + 1)  # type: ignore
+            logger.info("Init Loss: %f, Loss_v: %f", running_vlos[0], running_vlos[1])
+
         # ── CSV logger: one file per model per run ─────────────────────
         with CSVTrainingLogger(
             output_dir=csv_output_dir,
             model_name=model.name, # type: ignore
         ) as csv_log:
 
+            csv_log.log(
+                epoch=0,
+                train_loss=running_vlos[0],
+                val_loss=running_vlos[1],
+                teacher_forcing_ratio=-1,
+                learning_rate=-1,
+                is_best=False,
+            )
+
             for epoch in range(config["epochs"]):
                 logger.info("Starting epoch %i", epoch + 1)
 
-                tf_ratio = max(0.0, 1.0 - (epoch / config['epochs']))  # linear decay
+                tf_ratio = max(0.05, 0.5 ** (epoch / (config['epochs'] / 4.0))) # exponential decay
 
                 model.train(True)
                 avg_loss = _train_one_epoch(

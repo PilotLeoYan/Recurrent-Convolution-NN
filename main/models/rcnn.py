@@ -62,6 +62,17 @@ class RCNN2d(nn.Module):
             nn.Sigmoid(),
         )
 
+        self._init_weights()
+
+    def _init_weights(self) -> None:
+        for u in range(self.units):
+            nn.init.kaiming_normal_(self.conv2d_ih[u].weight, mode='fan_out', nonlinearity='relu') # type: ignore
+            nn.init.orthogonal_(self.conv2d_hh[u].weight) # type: ignore
+            nn.init.zeros_(self.conv2d_ih[u].bias) # type: ignore
+            nn.init.zeros_(self.conv2d_hh[u].bias) # type: ignore
+        nn.init.xavier_uniform_(self.output_proj[0].weight) # type: ignore
+        nn.init.zeros_(self.output_proj[0].bias) # type: ignore
+
     def forward(self, x: torch.Tensor, h0: torch.Tensor | None = None):
         seq_len, batch, c_in, H, W = x.shape
 
@@ -120,7 +131,7 @@ class RCNN2d(nn.Module):
             if targets is not None and torch.rand(1).item() < teacher_forcing_ratio:
                 current = targets[t].unsqueeze(0)  # ground truth
             else:
-                current = pred.detach().unsqueeze(0)
+                current = pred.unsqueeze(0)
 
         return torch.stack(predictions)
 

@@ -14,8 +14,8 @@ def _ssim_loss(
     mu_p = F.avg_pool2d(pred, window_size, stride=1, padding=window_size // 2)
     mu_t = F.avg_pool2d(target, window_size, stride=1, padding=window_size // 2)
     mu_p2, mu_t2, mu_pt = mu_p ** 2, mu_t ** 2, mu_p * mu_t
-    sig_p  = (F.avg_pool2d(pred ** 2, window_size, 1, window_size // 2) - mu_p2).clamp(min=0)
-    sig_t  = (F.avg_pool2d(target ** 2, window_size, 1, window_size // 2) - mu_t2).clamp(min=0)
+    sig_p  = (F.avg_pool2d(pred ** 2, window_size, 1, window_size // 2) - mu_p2).clamp(min=1e-8)
+    sig_t  = (F.avg_pool2d(target ** 2, window_size, 1, window_size // 2) - mu_t2).clamp(min=1e-8)
     sig_pt =  F.avg_pool2d(pred * target, window_size, 1, window_size // 2) - mu_pt
     num   = (2 * mu_pt + C1) * (2 * sig_pt + C2)
     denom = (mu_p2 + mu_t2 + C1) * (sig_p + sig_t + C2)

@@ -50,6 +50,21 @@ class Conv2dGRU(nn.Module):
             nn.Sigmoid(),
         )
 
+        self._init_weights()
+
+    def _init_weights(self) -> None:
+        recurrent_keys = {"hz", "hr", "hn"}
+        for cell in self.cells:
+            for key, conv in cell.items(): # type: ignore
+                if key in recurrent_keys:
+                    nn.init.orthogonal_(conv.weight)
+                else:
+                    nl = 'tanh' if key == 'xn' else 'sigmoid'
+                    nn.init.xavier_uniform_(conv.weight, gain=nn.init.calculate_gain(nl))
+                nn.init.zeros_(conv.bias)
+        nn.init.xavier_uniform_(self.output_proj[0].weight) # type: ignore
+        nn.init.zeros_(self.output_proj[0].bias) # type: ignore
+
     def _gru_cell(self, x: torch.Tensor, h: torch.Tensor, u: int) -> torch.Tensor:
         c = self.cells[u]
         # (z) update gate, (r) reset gate, (n) candidate
@@ -108,7 +123,7 @@ class Conv2dGRU(nn.Module):
             if targets is not None and torch.rand(1).item() < teacher_forcing_ratio:
                 current = targets[t].unsqueeze(0) # ground truth
             else:
-                current = pred.detach().unsqueeze(0)
+                current = pred.unsqueeze(0)
 
         return torch.stack(predictions)
 
