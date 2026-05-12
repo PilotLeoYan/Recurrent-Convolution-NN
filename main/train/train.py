@@ -166,8 +166,6 @@ def _train_models(
                     train_loader, optimizer, model,
                     loss_fn, tf_ratio, config)
 
-                lr_scheduler.step()
-
                 running_vlos = 0.0
                 model.eval()
                 with torch.no_grad():
@@ -181,6 +179,8 @@ def _train_models(
                         vloss = loss_fn(vpredictions, vlabels)
                         running_vlos += vloss
                 avg_vloss = running_vlos / (i + 1)  # type: ignore
+
+                lr_scheduler.step() # use .step() always after of valid step.
 
                 # Determine whether this epoch is the new best
                 is_best = config['save_best'] and avg_vloss < best_vloss
