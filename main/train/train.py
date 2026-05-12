@@ -8,7 +8,7 @@ try:
         make_dataloader,
     )
     from losses import get_loss_fn
-    from models import RCNN2d, predict_rcnn2d, transpose_data, Conv2dGRU, predict_cgru, RNN, predict_rnn
+    from models import RCNN2d, predict_rcnn2d, transpose_data, Conv2dGRU, predict_cgru, RNN, predict_rnn, CNN, predict_cnn
     from optimizers import get_optimizer
     from utils.logger import get_logger
     from utils.csv_logger import CSVTrainingLogger
@@ -20,7 +20,7 @@ except ModuleNotFoundError:
         make_dataloader,
     )
     from ..losses import get_loss_fn
-    from ..models import RCNN2d, predict_rcnn2d, transpose_data, Conv2dGRU, predict_cgru, RNN, predict_rnn
+    from ..models import RCNN2d, predict_rcnn2d, transpose_data, Conv2dGRU, predict_cgru, RNN, predict_rnn, CNN, predict_cnn
     from ..optimizers import get_optimizer
     from ..utils.logger import get_logger
     from ..utils.csv_logger import CSVTrainingLogger
@@ -94,7 +94,16 @@ def train_models(
         models.append(
             RNN(
                 input_channels=batch.shape[2],
+                hidden_size=config["hidden_size_rnn"],
+                units=config["units"],
+            )
+        )
+    if args == 'cnn' or args == 'all':
+        models.append(
+            CNN(
+                input_channels=batch.shape[2],
                 hidden_channels=config["hidden_channels"],
+                kernel_size=config["kernel_size"],
                 units=config["units"],
             )
         )
@@ -290,6 +299,13 @@ def get_prediction(
         )
     elif isinstance(model, RNN):
         predictions = predict_rnn(
+            model,  # type: ignore
+            inputs,
+            labels,
+            teacher_forcing_ratio=teacher_forcing_ratio,
+        )
+    elif isinstance(model, CNN):
+        predictions = predict_cnn(
             model,  # type: ignore
             inputs,
             labels,
