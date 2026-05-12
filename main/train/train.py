@@ -9,7 +9,7 @@ try:
     )
     from losses import get_loss_fn
     from models import RCNN2d, predict_rcnn2d, transpose_data, Conv2dGRU, predict_cgru
-    from optimizers import get_optimizer
+    from optimizers import get_optimizer, get_lr_scheduler
     from utils.logger import get_logger
     from utils.csv_logger import CSVTrainingLogger
 except ModuleNotFoundError:
@@ -21,7 +21,7 @@ except ModuleNotFoundError:
     )
     from ..losses import get_loss_fn
     from ..models import RCNN2d, predict_rcnn2d, transpose_data, Conv2dGRU, predict_cgru
-    from ..optimizers import get_optimizer
+    from ..optimizers import get_optimizer, get_lr_scheduler
     from ..utils.logger import get_logger
     from ..utils.csv_logger import CSVTrainingLogger
 
@@ -81,7 +81,7 @@ def train_models(
                 activation=config["activation"],
             )
         )
-    if args == 'cgru' or args == 'all': 
+    if args == 'cgru' or args == 'all':
         models.append(
             Conv2dGRU(
                 input_channels=batch.shape[2],
@@ -148,11 +148,12 @@ def _train_models(
         optimizer = get_optimizer(
             model.parameters(), lr=config["lr"], weight_decay=config["weight_decay"]
         )
+        lr_scheduler = get_lr_scheduler(optimizer, config['lr_scheduler']['step_size'], config['lr_scheduler']['gamma'])
 
         # ── CSV logger: one file per model per run ─────────────────────
         with CSVTrainingLogger(
             output_dir=csv_output_dir,
-            model_name=model.name,
+            model_name=model.name, # type: ignore
         ) as csv_log:
 
             for epoch in range(config["epochs"]):
@@ -162,8 +163,10 @@ def _train_models(
 
                 model.train(True)
                 avg_loss = _train_one_epoch(
-                    train_loader, optimizer, model, loss_fn,
-                    tf_ratio, config)
+                    train_loader, optimizer, model,
+                    loss_fn, tf_ratio, config)
+
+                lr_scheduler.step()
 
                 running_vlos = 0.0
                 model.eval()
@@ -191,7 +194,7 @@ def _train_models(
                             'model_state_dict': model.state_dict(),
                             'optimizer_state_dict': optimizer.state_dict(),
                             'loss': loss_fn,  # type: ignore
-                        }, config['model_path'] + f'_{model.name}_best')
+                        }, config['model_path'] + f'_{model.name}_best.pth')
                     except RuntimeError:
                         from pathlib import Path
                         Path(config['model_path']).parent.mkdir(parents=True, exist_ok=True)
@@ -201,7 +204,7 @@ def _train_models(
                             'model_state_dict': model.state_dict(),
                             'optimizer_state_dict': optimizer.state_dict(),
                             'loss': loss_fn,  # type: ignore
-                        }, config['model_path'] + f'_{model.name}_best')
+                        }, config['model_path'] + f'_{model.name}_best.pth')
 
                 # ── Write one CSV row for this epoch ───────────────────
                 csv_log.log(
@@ -227,7 +230,7 @@ def _train_models(
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': loss_fn,  # type: ignore
-            }, config['model_path'] + f'_{model.name}_last')
+            }, config['model_path'] + f'_{model.name}_last.pth')
 
 
 def _train_one_epoch(
@@ -266,22 +269,22 @@ def get_prediction(
     teacher_forcing_ratio: float,
 ) -> torch.Tensor:
     """ """
-    if isinstance(model, RCNN2d): 
+    if isinstance(model, RCNN2d):
         predictions = predict_rcnn2d(
             model, # type: ignore
-            inputs, 
+            inputs,
             labels,
             teacher_forcing_ratio=teacher_forcing_ratio,
         )
     elif isinstance(model, Conv2dGRU):
         predictions = predict_cgru(
             model, # type: ignore
-            inputs, 
+            inputs,
             labels,
             teacher_forcing_ratio=teacher_forcing_ratio,
         )
     else:
         logger.error('Not specific predict_model available')
-        raise 
+        raise
 
     return predictions # (10, batch, 1, H, W)
