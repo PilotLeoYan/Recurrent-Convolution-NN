@@ -29,7 +29,7 @@
     },
     "lr_scheduler":{
       "step_size": 1,
-      "gamma": 1
+      "gamma": 0.2
     }
   },
   "eval": {
