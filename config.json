@@ -28,8 +28,8 @@
       "n_workers": 0
     },
     "lr_scheduler":{
-      "step_size": 1,
-      "gamma": 0.2
+      "step_size": 15,
+      "gamma": 0.5
     }
   },
   "eval": {
