@@ -1,7 +1,6 @@
 import torch
 from .rcnn import RCNN2d, predict_rcnn2d
 from .cgru import Conv2dGRU, predict_cgru
-from .rnn import RNN, predict_rnn
 from .cnn import CNN, predict_cnn
 
 
@@ -22,8 +21,6 @@ __all__ = [
     'predict_rcnn2d',
     'Conv2dGRU',
     'predict_cgru',
-    'RNN',
-    'predict_rnn',
     'CNN',
     'predict_cnn',
     'transpose_data',
