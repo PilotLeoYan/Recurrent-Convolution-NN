@@ -212,7 +212,7 @@ def _train_models(
                     train_loss=avg_loss,
                     val_loss=float(avg_vloss),
                     teacher_forcing_ratio=tf_ratio,
-                    learning_rate=config["lr"],
+                    learning_rate=optimizer.param_groups[0]['lr'],
                     is_best=is_best,
                 )
 
