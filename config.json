@@ -34,16 +34,16 @@
     }
   },
   "eval": {
-    "model_type": "rcnn",
-    "model_path": "saves/weights_rcnn2d_best",
+    "model_type": "cnn",
+    "model_path": "saves/weights_cnn_best.pth",
     "batch_size": 32,
     "n_workers": 0,
-    "hidden_channels": 16,
-    "kernel_size": 3,
-    "units": 8,
-    "activation": "relu",
     "split_seq_len": 10,
-    "device": "cuda"
+    "device": "cuda",
+    "hidden_channels": 64,
+    "kernel_size": 3,
+    "units": 3,
+    "activation": "relu"
   },
   "logger": {
     "level": "INFO",

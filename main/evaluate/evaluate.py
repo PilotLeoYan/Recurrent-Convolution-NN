@@ -2,82 +2,64 @@ import torch
 
 try:
     from data import MovingMNISTDataset, download_moving_mnist, make_dataloader
-    from models import RCNN2d, Conv2dGRU, CNN, predict_rcnn2d, transpose_data
+    from models import RCNN2d, Conv2dGRU, CNN, transpose_data
     from train import get_prediction
     from utils.logger import get_logger
 except ModuleNotFoundError:
     from ..data import MovingMNISTDataset, download_moving_mnist, make_dataloader
-    from ..models import RCNN2d, Conv2dGRU, CNN, predict_rcnn2d, transpose_data
+    from ..models import RCNN2d, Conv2dGRU, CNN, transpose_data
     from ..train import get_prediction
     from ..utils.logger import get_logger
+from .metrics import metrics
 
 logger = get_logger(__name__)
 
 # Maps the config key -> (ModelClass, model.name)
 _MODEL_REGISTRY: dict[str, tuple[type, str]] = {
-    "rcnn": (RCNN2d, "rcnn2d"),
+    "rcnn2d": (RCNN2d, "rcnn2d"),
     "cgru": (Conv2dGRU, "cgru"),
-    "cnn":  (CNN,      "cnn"),
+    "cnn":  (CNN, "cnn"),
 }
 
 
 def eval_models(config: dict) -> None:
     """
-    Evaluate one or all models.
-
-    The ``model_type`` key in *config* selects which model(s) to evaluate:
-      - ``"rcnn"``  – RCNN2d  (default, backward-compatible)
-      - ``"cgru"``  – Conv2dGRU
-      - ``"cnn"``   – CNN
-      - ``"all"``   – evaluates all three sequentially
-
-    When ``model_type`` is ``"all"`` the checkpoint path for each model is
-    derived from ``model_path`` by appending ``_{model_name}_best``, matching
-    the naming convention used by the trainer.  For a single model type the
-    ``model_path`` value is used verbatim.
     """
     if len(config) == 0:
         logger.warning('Not found "eval" configuration in config.json.')
         return
 
-    model_type = config.get("model_type", "rcnn").lower()
+    model_type = config.get("model_type", "not selected").lower()
 
-    if model_type == "all":
-        keys_to_eval = list(_MODEL_REGISTRY.keys())
-    elif model_type in _MODEL_REGISTRY:
-        keys_to_eval = [model_type]
+    if model_type in _MODEL_REGISTRY:
+        model_cls, model_name = _MODEL_REGISTRY[model_type]
     else:
         logger.error(
             'Unknown model_type "%s". Valid options: %s.',
             model_type,
-            list(_MODEL_REGISTRY.keys()) + ["all"],
+            list(_MODEL_REGISTRY.keys()),
         )
         return
 
     test_loader = _load_test(config)
     first_batch = next(iter(test_loader))
 
-    for key in keys_to_eval:
-        model_cls, model_name = _MODEL_REGISTRY[key]
+    model_path = config["model_path"]
 
-        # Resolve checkpoint path
-        if model_type == "all":
-            model_path = f"{config['model_path']}_{model_name}_best"
-        else:
-            model_path = config["model_path"]
+    logger.info('Evaluating model "%s" from "%s"', model_name, model_path)
 
-        logger.info('Evaluating model "%s" from "%s"', model_name, model_path)
+    model, loss_fn = _load_model(
+        batch=first_batch,
+        config=config,
+        model_cls=model_cls,
+        model_path=model_path,
+    )
+    model.to(config["device"])
+    model.eval()
 
-        model, loss_fn = _load_model(
-            batch=first_batch,
-            config=config,
-            model_cls=model_cls,
-            model_path=model_path,
-        )
-        model.to(config["device"])
-        model.eval()
-
-        running_loss = 0.0
+    running_loss = 0.0
+    running_metrics = metrics(torch.zeros((1, )), torch.zeros(1, )) # type: ignore
+    with torch.no_grad():
         for i, batch in enumerate(test_loader):
             with torch.no_grad():
                 inputs, labels = transpose_data(batch, config["split_seq_len"])
@@ -91,12 +73,19 @@ def eval_models(config: dict) -> None:
                 loss = loss_fn(predictions, labels)
                 running_loss += loss.item()
 
-        avg_loss = running_loss / (i + 1)  # type: ignore[possibly-undefined]
-        logger.info('Test loss [%s]: %f', model_name, avg_loss)
+                metrics_values = metrics(predictions, labels)
+                for key in metrics_values:
+                    running_metrics[key] += metrics_values[key]
 
+    avg_loss = running_loss / (i + 1) # type: ignore[possibly-undefined]
+    logger.info('Test [%s], loss: %f', model_name, avg_loss)
+
+    avg_metrics = metrics(torch.zeros((1, )), torch.zeros(1, )) # type: ignore
+    for key in running_metrics:
+        avg_metrics[key] = running_metrics[key] / (i + 1) # type: ignore[possibly-undefined]
+        logger.info('Test [%s] metrics, %s: %f', model_name, key.upper(), avg_metrics[key])
 
 # Helpers
-
 def _load_test(config: dict) -> torch.utils.data.DataLoader:
     """ """
     paths = download_moving_mnist()

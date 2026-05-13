@@ -26,9 +26,8 @@ def main() -> None:
             train_models(args=args["fit"], config=config.get("fit", {}))
         elif args.get("test", False):
             eval_models(config=config.get("eval", {}))
-        elif args.get("fit_test", False):
-            train_models(args=args["fit"], config=config.get("fit", {}))
-            eval_models(config=config.get("eval", {}))
+        else:
+            print('No parameter was selected. Use "python -m main -h" for help.')
 
     except KeyboardInterrupt:
         sys.exit(0)
