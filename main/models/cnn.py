@@ -106,7 +106,6 @@ def predict_cnn(
     **kwargs,
 ) -> torch.Tensor:
     """Encode input sequence, then decode autoregressively."""
-    _, _ = model(inputs)                         # warm-up (no state to carry)
     return model.decode(
         pred_len=labels.shape[0],
         last_frame=inputs[-1],

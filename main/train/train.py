@@ -221,7 +221,7 @@ def _train_models(
             for epoch in range(config["epochs"]):
                 logger.info("Starting epoch %i", epoch + 1)
 
-                tf_ratio = max(0.05, 0.5 ** (epoch / (config['epochs'] / 4.0))) # exponential decay
+                tf_ratio = max(0.05, 1.0 - epoch / max(config['epochs'] - 1, 1)) # lineal decay
 
                 model.train(True)
                 avg_loss = _train_one_epoch(
@@ -242,7 +242,11 @@ def _train_models(
                         running_vlos += vloss.item()
                 avg_vloss = running_vlos / (i + 1)  # type: ignore
 
-                lr_scheduler.step() # use .step() always after of valid step.
+                # use .step() always after of valid step.
+                if isinstance(lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                    lr_scheduler.step(avg_vloss)
+                else:
+                    lr_scheduler.step()
 
                 # Determine whether this epoch is the new best
                 is_best = config['save_best'] and avg_vloss < best_vloss
@@ -317,7 +321,7 @@ def _train_one_epoch(
 
         loss = loss_fn(predictions, labels)
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0) # gradient clipping
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0) # gradient clipping
         optimizer.step()
         running_loss += loss.item()
 
@@ -353,7 +357,9 @@ def get_prediction(
             teacher_forcing_ratio=teacher_forcing_ratio,
         )
     else:
-        logger.error('Not specific predict_model available')
-        raise
+        raise TypeError(
+            f"No predict function available for model type '{type(model).__name__}'. "
+            f"Expected one of: RCNN2d, Conv2dGRU, CNN."
+        )
 
     return predictions  # (pred_len, batch, 1, H, W)
