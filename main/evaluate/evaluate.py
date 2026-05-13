@@ -2,55 +2,105 @@ import torch
 
 try:
     from data import MovingMNISTDataset, download_moving_mnist, make_dataloader
-    from models import RCNN2d, predict_rcnn2d, transpose_data
+    from models import RCNN2d, Conv2dGRU, CNN, predict_rcnn2d, transpose_data
     from train import get_prediction
     from utils.logger import get_logger
 except ModuleNotFoundError:
     from ..data import MovingMNISTDataset, download_moving_mnist, make_dataloader
-    from ..models import RCNN2d, predict_rcnn2d, transpose_data
+    from ..models import RCNN2d, Conv2dGRU, CNN, predict_rcnn2d, transpose_data
     from ..train import get_prediction
     from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# Maps the config key -> (ModelClass, model.name)
+_MODEL_REGISTRY: dict[str, tuple[type, str]] = {
+    "rcnn": (RCNN2d, "rcnn2d"),
+    "cgru": (Conv2dGRU, "cgru"),
+    "cnn":  (CNN,      "cnn"),
+}
+
 
 def eval_models(config: dict) -> None:
-    """ """
+    """
+    Evaluate one or all models.
+
+    The ``model_type`` key in *config* selects which model(s) to evaluate:
+      - ``"rcnn"``  – RCNN2d  (default, backward-compatible)
+      - ``"cgru"``  – Conv2dGRU
+      - ``"cnn"``   – CNN
+      - ``"all"``   – evaluates all three sequentially
+
+    When ``model_type`` is ``"all"`` the checkpoint path for each model is
+    derived from ``model_path`` by appending ``_{model_name}_best``, matching
+    the naming convention used by the trainer.  For a single model type the
+    ``model_path`` value is used verbatim.
+    """
     if len(config) == 0:
         logger.warning('Not found "eval" configuration in config.json.')
         return
 
+    model_type = config.get("model_type", "rcnn").lower()
+
+    if model_type == "all":
+        keys_to_eval = list(_MODEL_REGISTRY.keys())
+    elif model_type in _MODEL_REGISTRY:
+        keys_to_eval = [model_type]
+    else:
+        logger.error(
+            'Unknown model_type "%s". Valid options: %s.',
+            model_type,
+            list(_MODEL_REGISTRY.keys()) + ["all"],
+        )
+        return
+
     test_loader = _load_test(config)
+    first_batch = next(iter(test_loader))
 
-    logger.info('Loading model from "%s"', config['model_path'])
+    for key in keys_to_eval:
+        model_cls, model_name = _MODEL_REGISTRY[key]
 
-    model, loss_fn = _load_model(next(iter(test_loader)), config)
-    model.to(config["device"])
-    model.eval()
+        # Resolve checkpoint path
+        if model_type == "all":
+            model_path = f"{config['model_path']}_{model_name}_best"
+        else:
+            model_path = config["model_path"]
 
-    running_loss = 0.0
-    for i, batch in enumerate(test_loader):
-        with torch.no_grad():
-            inputs, labels = transpose_data(batch, config["split_seq_len"])
-            inputs = inputs.to(config["device"])
-            labels = labels.to(config["device"])
+        logger.info('Evaluating model "%s" from "%s"', model_name, model_path)
 
-            predictions = get_prediction(
-                model, inputs, labels, teacher_forcing_ratio=0.0,
-            )
+        model, loss_fn = _load_model(
+            batch=first_batch,
+            config=config,
+            model_cls=model_cls,
+            model_path=model_path,
+        )
+        model.to(config["device"])
+        model.eval()
 
-            loss = loss_fn(predictions, labels)
-            running_loss += loss.item()
-    avg_loss = running_loss / (i + 1)  # type: ignore
-    logger.info("Test loss: %f", avg_loss)
+        running_loss = 0.0
+        for i, batch in enumerate(test_loader):
+            with torch.no_grad():
+                inputs, labels = transpose_data(batch, config["split_seq_len"])
+                inputs = inputs.to(config["device"])
+                labels = labels.to(config["device"])
 
+                predictions = get_prediction(
+                    model, inputs, labels, teacher_forcing_ratio=0.0,
+                )
+
+                loss = loss_fn(predictions, labels)
+                running_loss += loss.item()
+
+        avg_loss = running_loss / (i + 1)  # type: ignore[possibly-undefined]
+        logger.info('Test loss [%s]: %f', model_name, avg_loss)
+
+
+# Helpers
 
 def _load_test(config: dict) -> torch.utils.data.DataLoader:
     """ """
     paths = download_moving_mnist()
-
     test_ds = MovingMNISTDataset(paths[2])
-
     return make_dataloader(
         test_ds,
         batch_size=config["batch_size"],
@@ -59,18 +109,31 @@ def _load_test(config: dict) -> torch.utils.data.DataLoader:
 
 
 def _load_model(
-    batch: torch.Tensor, config: dict
+    batch: torch.Tensor,
+    config: dict,
+    model_cls: type,
+    model_path: str,
 ) -> tuple[torch.nn.Module, torch.nn.MSELoss]:
-    """ """
-    model = RCNN2d(
+    """
+    Instantiate *model_cls* with the hyper-parameters from *config* and
+    load the checkpoint at *model_path*.
+
+    ``Conv2dGRU`` and ``CNN`` do not accept an ``activation`` kwarg, so
+    that argument is only forwarded to ``RCNN2d``.
+    """
+    kwargs: dict = dict(
         input_channels=batch.shape[2],
         hidden_channels=config["hidden_channels"],
         kernel_size=config["kernel_size"],
         units=config["units"],
-        activation=config["activation"],
     )
-    checkpoint = torch.load(config["model_path"], weights_only=False)
-    model.load_state_dict(checkpoint["model_state_dict"])
-    loss = checkpoint["loss"]
+    if model_cls is RCNN2d:
+        kwargs["activation"] = config.get("activation", "relu")
 
-    return model, loss
+    model = model_cls(**kwargs)
+
+    checkpoint = torch.load(model_path, weights_only=False)
+    model.load_state_dict(checkpoint["model_state_dict"])
+    loss_fn = checkpoint["loss"]
+
+    return model, loss_fn
