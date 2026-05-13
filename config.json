@@ -46,6 +46,22 @@
     "units": 3,
     "activation": "relu"
   },
+  "visualize": {
+    "model_type": "cnn",
+    "model_path": "saves/weights_cnn_best.pth",
+    "batch_size": 32,
+    "n_workers": 0,
+    "split_seq_len": 10,
+    "device": "cpu",
+    "hidden_channels": 64,
+    "kernel_size": 3,
+    "units": 3,
+    "activation": "relu",
+    "n_samples": 5,
+    "output_dir": "saves/visualizations",
+    "colormap": "gray",
+    "dpi": 150
+  },
   "logger": {
     "level": "INFO",
     "log_to_file": true,
