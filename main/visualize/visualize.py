@@ -1,6 +1,4 @@
 """
-visualize.py
-============
 Generates PNG images comparing input frames, ground-truth future frames,
 model predictions and absolute-error maps for a pretrained model.
 
@@ -70,9 +68,9 @@ _MODEL_REGISTRY: dict[str, tuple[type, str]] = {
 _ROW_LABELS = ["Input", "Ground truth", "Prediction", "|Error|"]
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+
 # Public entry-point
-# ─────────────────────────────────────────────────────────────────────────────
+
 
 def visualize_inference(config: dict) -> None:
     """
