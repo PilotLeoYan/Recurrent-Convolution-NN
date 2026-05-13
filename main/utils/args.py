@@ -8,18 +8,10 @@ def create_parser() -> argparse.ArgumentParser:
 
     group = parser.add_mutually_exclusive_group()
 
-    # not used yet
-    group.add_argument('-t', '--test', help='init all the testing.',
-        type=str,
-        choices=('all', 'rcnn', 'cgru', 'cnn'),
-        default=None)
+    group.add_argument('-t', '--test', help='init the testing of one model.',
+        action='store_true')
 
     group.add_argument('-f', '--fit', help='init the fitting.',
-        type=str,
-        choices=('all', 'rcnn', 'cgru', 'cnn'),
-        default=None)
-
-    group.add_argument('-ft', '--fit_test', help='init the fitting and then testing.',
         type=str,
         choices=('all', 'rcnn', 'cgru', 'cnn'),
         default=None)
