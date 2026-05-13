@@ -34,6 +34,7 @@
     }
   },
   "eval": {
+    "model_type": "rcnn",
     "model_path": "saves/weights_rcnn2d_best",
     "batch_size": 32,
     "n_workers": 0,
