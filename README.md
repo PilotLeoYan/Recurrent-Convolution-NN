@@ -1,30 +1,30 @@
 # Recurrent Convolution Neural Network — Video Prediction
 
-Proyecto universitario que compara tres arquitecturas de redes neuronales para la tarea de **predicción de frames en video**, usando el dataset Moving MNIST. La idea central es ver cuánto aporta el componente recurrente frente a una CNN sin memoria temporal.
+A university project comparing three neural network architectures for the task of **video frame prediction**, using the Moving MNIST dataset. The central idea is to measure how much the recurrent component contributes compared to a CNN with no temporal memory.
 
-Los tres modelos implementados son:
+The three implemented models are:
 
-- **RCNN2d** — RNN donde los pesos escalares se reemplazan por kernels `Conv2d`, tanto en la transición input→hidden como en hidden→hidden.
-- **Conv2dGRU (CGRU)** — GRU completo (update gate, reset gate, candidate) implementado con operaciones convolucionales.
-- **CNN** — Baseline sin recurrencia. Cada frame se procesa de forma independiente, sin estado oculto entre timesteps.
+- **RCNN2d** — An RNN where scalar weights are replaced by `Conv2d` kernels, both in the input→hidden and hidden→hidden transitions.
+- **Conv2dGRU (CGRU)** — A full GRU (update gate, reset gate, candidate) implemented with convolutional operations.
+- **CNN** — A recurrence-free baseline. Each frame is processed independently, with no hidden state carried between timesteps.
 
 ---
 
-## Tabla de contenidos
+## Table of Contents
 
-- [Estructura del proyecto](#estructura-del-proyecto)
-- [Arquitectura](#arquitectura)
+- [Project Structure](#project-structure)
+- [Architecture](#architecture)
 - [Dataset](#dataset)
-- [Entrenamiento](#entrenamiento)
-- [Instalación](#instalación)
-- [Uso](#uso)
-- [Configuración](#configuración)
-- [Pesos preentrenados](#pesos-preentrenados)
-- [Resultados](#resultados)
+- [Training](#training)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Configuration](#configuration)
+- [Pretrained Weights](#pretrained-weights)
+- [Results](#results)
 
 ---
 
-## Estructura del proyecto
+## Project Structure
 
 ```
 Recurrent-Convolution-NN/
@@ -40,13 +40,13 @@ Recurrent-Convolution-NN/
 │   │   └── train.py
 │   ├── evaluate/
 │   │   ├── evaluate.py
-│   │   └── metrics.py       # MAE y MSE
+│   │   └── metrics.py       # MAE and MSE
 │   ├── losses/
 │   │   └── __init__.py      # CombinedLoss (MSE + SSIM)
 │   ├── optimizers/
 │   │   └── __init__.py
 │   ├── data/
-│   │   ├── downloader.py    # Descarga y split del dataset
+│   │   ├── downloader.py    # Dataset download and split
 │   │   ├── dataset.py
 │   │   ├── dataloader.py
 │   │   └── transform.py
@@ -65,97 +65,97 @@ Recurrent-Convolution-NN/
 
 ---
 
-## Arquitectura
+## Architecture
 
-Los tres modelos comparten la misma interfaz encode-decode:
+All three models share the same encode-decode interface:
 
-- `forward(x, h0)` — recibe una secuencia `(seq_len, batch, C, H, W)` y retorna predicciones por timestep junto con el estado oculto final.
-- `decode(pred_len, last_frame, h, ...)` — genera `pred_len` frames futuros de forma autorregresiva usando el estado oculto del encoder.
-- `output_proj` — capa `Conv2d 1×1 + Sigmoid` que mapea el feature map de vuelta al espacio de píxeles `[0, 1]`.
+- `forward(x, h0)` — receives a sequence `(seq_len, batch, C, H, W)` and returns per-timestep predictions along with the final hidden state.
+- `decode(pred_len, last_frame, h, ...)` — autoregressively generates `pred_len` future frames using the encoder's hidden state.
+- `output_proj` — a `Conv2d 1×1 + Sigmoid` layer that maps the feature map back to pixel space `[0, 1]`.
 
-![Diagrama de arquitectura](assets/diagram.png)
+![Architecture diagram](assets/diagram.png)
 
-**RCNN2d** apila `units` capas recurrentes. Cada capa tiene dos `Conv2d` separados: uno para el input (`conv2d_ih`) y otro para el estado oculto (`conv2d_hh`), siguiendo la fórmula `h_t = act(W_ih·x_t + W_hh·h_{t-1})` pero en espacio convolucional 2D. Se usa inicialización Kaiming normal para las convoluciones de input y ortogonal para las recurrentes.
+**RCNN2d** stacks `units` recurrent layers. Each layer has two separate `Conv2d` modules: one for the input (`conv2d_ih`) and one for the hidden state (`conv2d_hh`), following the formula `h_t = act(W_ih·x_t + W_hh·h_{t-1})` but in 2D convolutional space. Kaiming normal initialization is used for the input convolutions and orthogonal initialization for the recurrent ones.
 
-**Conv2dGRU** reemplaza cada peso escalar de una celda GRU estándar por un kernel `Conv2d`. Cada celda calcula update gate `z`, reset gate `r` y candidate `n` mediante proyecciones convolucionales, capturando patrones espaciales y temporales al mismo tiempo.
+**Conv2dGRU** replaces each scalar weight in a standard GRU cell with a `Conv2d` kernel. Each cell computes update gate `z`, reset gate `r`, and candidate `n` via convolutional projections, capturing spatial and temporal patterns simultaneously.
 
-**CNN** es un stack de capas `Conv2d + ReLU` sin estado. Sirve como cota inferior: si los modelos recurrentes no la superan, el componente temporal no está aportando nada útil.
+**CNN** is a stack of `Conv2d + ReLU` layers with no state. It serves as a lower bound: if the recurrent models do not outperform it, the temporal component is not contributing anything useful.
 
-Todos los modelos recurrentes usan `Dropout(p=0.2)` entre capas ocultas (excepto en la última) para regularizar el camino recurrente.
+All recurrent models use `Dropout(p=0.2)` between hidden layers (except the last one) to regularize the recurrent path.
 
 ---
 
 ## Dataset
 
-**Moving MNIST** — secuencias de 20 frames en escala de grises, con dos dígitos moviéndose dentro de un frame de 64×64.
+**Moving MNIST** — sequences of 20 grayscale frames, with two digits moving inside a 64×64 frame.
 
-- Fuente original: `https://www.cs.toronto.edu/~nitish/unsupervised_video/mnist_test_seq.npy`
-- El downloader (`data/downloader.py`) lo descarga automáticamente en el primer uso (con reintentos y barra de progreso) y genera el split dentro de la carpeta `dataset/`:
+- Original source: `https://www.cs.toronto.edu/~nitish/unsupervised_video/mnist_test_seq.npy`
+- The downloader (`data/downloader.py`) fetches it automatically on first use (with retries and a progress bar) and generates the split inside the `dataset/` folder:
 
-| Split | Proporción | Archivo |
+| Split | Proportion | File |
 |---|---|---|
 | Train | 70% | `moving_mnist_train.npy` |
-| Validación | 15% | `moving_mnist_valid.npy` |
+| Validation | 15% | `moving_mnist_valid.npy` |
 | Test | 15% | `moving_mnist_test.npy` |
 
-El split usa semilla fija (`seed=42`). Cada sample es un tensor `(seq_len, 1, 64, 64)` normalizado a `[0, 1]`. La secuencia se divide en `split_seq_len` (default `10`): los primeros 10 frames son el **input** y los restantes son el **target** a predecir.
+The split uses a fixed seed (`seed=42`). Each sample is a tensor `(seq_len, 1, 64, 64)` normalized to `[0, 1]`. The sequence is divided at `split_seq_len` (default `10`): the first 10 frames are the **input** and the remaining ones are the **target** to predict.
 
-> **Dataset pre-dividido disponible:** ver [Pesos preentrenados](#pesos-preentrenados).
+> **Pre-split dataset available:** see [Pretrained Weights](#pretrained-weights).
 
 ---
 
-## Entrenamiento
+## Training
 
 ### Loss
 
-Se usa una **loss combinada MSE + SSIM**:
+A **combined MSE + SSIM loss** is used:
 
 ```
 L = α · MSE(pred, target) + (1 − α) · (1 − SSIM(pred, target))
 ```
 
-con `α = 0.85`. El SSIM se aproxima con average pooling de ventana 11×11. La combinación busca que las predicciones sean precisas a nivel de píxel (MSE) y visualmente nítidas (SSIM).
+with `α = 0.85`. SSIM is approximated using average pooling with an 11×11 window. The combination aims for predictions that are accurate at the pixel level (MSE) and visually sharp (SSIM).
 
-### Optimizer y scheduler
+### Optimizer and Scheduler
 
 - AdamW (`lr = 0.001`, `weight_decay = 0.01`)
-- Cosine annealing con warm-up lineal (3 épocas de warm-up, `T_max = 50`, `eta_min = 1e-6`)
-- Gradient clipping con `max_norm = 5.0`
+- Cosine annealing with linear warm-up (3 warm-up epochs, `T_max = 50`, `eta_min = 1e-6`)
+- Gradient clipping with `max_norm = 5.0`
 
-### Teacher forcing
+### Teacher Forcing
 
-Durante el decode, la probabilidad de usar el frame real en vez de la predicción del propio modelo decae linealmente con las épocas:
+During decoding, the probability of using the ground-truth frame instead of the model's own prediction decays linearly with epochs:
 
 ```
 tf_ratio = max(0.05, 1.0 − epoch / (epochs − 1))
 ```
 
-Arranca en 1.0 (siempre usa ground truth) y termina en 0.05 (casi completamente autorregresivo).
+It starts at 1.0 (always uses ground truth) and ends at 0.05 (almost fully autoregressive).
 
-### Hardware utilizado
+### Hardware
 
-| Componente | Especificación |
+| Component | Specification |
 |---|---|
 | GPU | NVIDIA GeForce RTX 2070 Super (8 GB VRAM) |
 | RAM | 16 GB DDR4 |
 | CPU | AMD Ryzen 7 — 8 cores / 16 threads |
 
-### Tiempos de entrenamiento
+### Training Times
 
-Los tres modelos se entrenaron secuencialmente con la configuración exacta de `config.json` (`epochs=50`, `hidden_channels=64`, `kernel_size=3`, `units=3`, `batch_size=8`).
+All three models were trained sequentially with the exact configuration from `config.json` (`epochs=50`, `hidden_channels=64`, `kernel_size=3`, `units=3`, `batch_size=8`).
 
-| Modelo | Inicio | Fin | Duración |
-|---|---|---|---|
-| RCNN2d | 2026-05-12 16:10:32 | 2026-05-12 17:48:11 | **1 h 37 m 39 s** |
-| Conv2dGRU | 2026-05-12 17:50:37 | 2026-05-12 23:10:08 | **5 h 19 m 31 s** |
-| CNN | 2026-05-12 23:10:18 | 2026-05-12 23:33:57 | **0 h 23 m 39 s** |
-| **Total** | | | **≈ 7 h 20 m 49 s** |
+| Model | Duration |
+| --- | --- |
+| RCNN2d | **1 h 37 m 39 s** |
+| Conv2dGRU | **5 h 19 m 31 s** |
+| CNN | **0 h 23 m 39 s** |
+| **Total** | **≈ 7 h 20 m 49 s** |
 
-La diferencia tan grande entre CGRU y los demás es esperable: la celda GRU requiere 6 operaciones `Conv2d` por capa por timestep (vs 2 del RCNN2d), lo que lo hace considerablemente más costoso.
+The large gap between CGRU and the other models is expected: a GRU cell requires 6 `Conv2d` operations per layer per timestep (vs. 2 for RCNN2d), making it considerably more expensive.
 
-Las métricas por época se guardan automáticamente en `saves/training_logs/` como archivos CSV.
+Per-epoch metrics are automatically saved to `saves/training_logs/` as CSV files.
 
-### Curvas de loss
+### Loss Curves
 
 <table>
 <tr>
@@ -163,26 +163,26 @@ Las métricas por época se guardan automáticamente en `saves/training_logs/` c
 <td><img src="assets/val_loss.png" alt="Validation loss" width="420"/></td>
 </tr>
 <tr>
-<td align="center">Loss de entrenamiento</td>
-<td align="center">Loss de validación</td>
+<td align="center">Training loss</td>
+<td align="center">Validation loss</td>
 </tr>
 </table>
 
-El CGRU alcanza la loss más baja en ambas curvas (~0.035 en train, ~0.055 en validación), aunque el entrenamiento es considerablemente más inestable, especialmente en las primeras épocas. El punto marcado en la curva de validación indica el checkpoint guardado (mejor época). CNN y RCNN se mantienen alrededor de 0.075, lo que sugiere que sin los gates del GRU el modelo tiene dificultades para capturar la dinámica temporal del dataset.
+CGRU reaches the lowest loss on both curves (~0.035 on train, ~0.055 on validation), although training is considerably more unstable, especially in the early epochs. The marked point on the validation curve indicates the saved checkpoint (best epoch). CNN and RCNN hover around 0.075, suggesting that without the GRU gates the model struggles to capture the temporal dynamics of the dataset.
 
 ---
 
-## Instalación
+## Installation
 
-Requiere Python ≥ 3.10 y GPU con CUDA (recomendado).
+Requires Python ≥ 3.10 and a CUDA-capable GPU (recommended).
 
 ```bash
-git clone https://github.com/<usuario>/Recurrent-Convolution-NN.git
+git clone https://github.com/<username>/Recurrent-Convolution-NN.git
 cd Recurrent-Convolution-NN
 pip install -r requirements.txt
 ```
 
-Dependencias:
+Dependencies:
 
 ```
 torch==2.11.0
@@ -197,55 +197,55 @@ setuptools==81.0.0
 
 ---
 
-## Uso
+## Usage
 
-Todos los comandos se ejecutan como módulo Python desde la raíz del proyecto:
+All commands are run as a Python module from the project root:
 
 ```bash
-# Entrenar todos los modelos
+# Train all models
 python -m main --fit all
 
-# Entrenar un modelo específico
+# Train a specific model
 python -m main --fit rcnn
 python -m main --fit cgru
 python -m main --fit cnn
 
-# Evaluar en el test set (usa la sección "eval" de config.json)
+# Evaluate on the test set (uses the "eval" section of config.json)
 python -m main --test
 
-# Generar visualizaciones de inferencia (usa la sección "visualize" de config.json)
+# Generate inference visualizations (uses the "visualize" section of config.json)
 python -m main --visualize
 
-# Usar un config diferente
-python -m main --fit all --config ruta/a/config.json
+# Use a different config file
+python -m main --fit all --config path/to/config.json
 
-# Ayuda
+# Help
 python -m main --help
 ```
 
-> En el primer uso el dataset se descarga automáticamente (~780 MB) y se divide en `dataset/`. Las siguientes ejecuciones detectan los archivos y se saltan la descarga.
+> On first use, the dataset is downloaded automatically (~780 MB) and split into `dataset/`. Subsequent runs detect the existing files and skip the download.
 
-Los logs se escriben en `logs/rcnn.log` (rotación automática, máx. 5 MB, 3 backups) y también se imprimen en consola.
+Logs are written to `logs/rcnn.log` (automatic rotation, max 5 MB, 3 backups) and also printed to the console.
 
 ---
 
-## Configuración
+## Configuration
 
-Todo el control del experimento está en `config.json`, con tres secciones principales:
+All experiment control is in `config.json`, with three main sections:
 
-### `fit` — entrenamiento
+### `fit` — training
 
 ```jsonc
 {
   "fit": {
-    "hidden_channels": 64,      // feature maps en capas ocultas
-    "kernel_size": 3,            // tamaño del kernel conv (same padding)
-    "units": 3,                  // capas recurrentes/conv apiladas
-    "activation": "relu",        // "relu" o "tanh" (solo RCNN2d)
+    "hidden_channels": 64,      // feature maps in hidden layers
+    "kernel_size": 3,            // conv kernel size (same padding)
+    "units": 3,                  // stacked recurrent/conv layers
+    "activation": "relu",        // "relu" or "tanh" (RCNN2d only)
     "device": "cuda",
     "lr": 0.001,
     "weight_decay": 0.01,
-    "split_seq_len": 10,         // frames de input; el resto son targets
+    "split_seq_len": 10,         // input frames; the rest are targets
     "epochs": 50,
     "save_best": true,
     "model_path": "saves/weights",
@@ -263,12 +263,12 @@ Todo el control del experimento está en `config.json`, con tres secciones princ
 }
 ```
 
-### `eval` — evaluación
+### `eval` — evaluation
 
 ```jsonc
 {
   "eval": {
-    "model_type": "cnn",                         // "rcnn2d", "cgru" o "cnn"
+    "model_type": "cnn",                         // "rcnn2d", "cgru", or "cnn"
     "model_path": "saves/weights_cnn_best.pth",
     "batch_size": 32,
     "n_workers": 0,
@@ -282,7 +282,7 @@ Todo el control del experimento está en `config.json`, con tres secciones princ
 }
 ```
 
-### `visualize` — inferencia visual
+### `visualize` — visual inference
 
 ```jsonc
 {
@@ -307,33 +307,33 @@ Todo el control del experimento está en `config.json`, con tres secciones princ
 
 ---
 
-## Pesos preentrenados
+## Pretrained Weights
 
-Los checkpoints guardados (`save_best=true`, mejor loss de validación) están disponibles en `weights.zip`:
+The saved checkpoints (`save_best=true`, best validation loss) are available in `weights.zip`:
 
-| Archivo | Modelo | Tamaño |
+| File | Model | Size |
 |---|---|---|
 | `weights_rcnn2d_best.pth` | RCNN2d | ~2.1 MB |
 | `weights_cgru_best.pth` | Conv2dGRU | ~6.4 MB |
 | `weights_cnn_best.pth` | CNN | ~863 KB |
 
-Colocar los `.pth` en `saves/` y actualizar `model_path` en `config.json` antes de correr `--test` o `--visualize`.
+Place the `.pth` files in `saves/` and update `model_path` in `config.json` before running `--test` or `--visualize`.
 
-El dataset pre-dividido está en `dataset.zip` (~781 MB):
+The pre-split dataset is in `dataset.zip` (~781 MB):
 
-| Archivo | Uso |
+| File | Purpose |
 |---|---|
-| `moving_mnist_train.npy` | Entrenamiento |
-| `moving_mnist_valid.npy` | Validación |
+| `moving_mnist_train.npy` | Training |
+| `moving_mnist_valid.npy` | Validation |
 | `moving_mnist_test.npy` | Test |
 
-Extraer en `dataset/` en la raíz del proyecto. El downloader detecta los archivos y omite la descarga automáticamente.
+Extract into `dataset/` at the project root. The downloader detects the files and skips the download automatically.
 
 ---
 
-## Resultados
+## Results
 
-Las visualizaciones muestran, de arriba a abajo: los 10 frames de input, el ground truth de los 10 frames a predecir, la predicción del modelo y el error absoluto por píxel.
+The visualizations show, from top to bottom: the 10 input frames, the ground truth for the 10 frames to predict, the model's prediction, and the absolute per-pixel error.
 
 ![Sample 0](assets/sample_000.png)
 
@@ -341,12 +341,12 @@ Las visualizaciones muestran, de arriba a abajo: los 10 frames de input, el grou
 
 ![Sample 2](assets/sample_002.png)
 
-El modelo logra predecir bien los primeros frames (~t=10 a t=12) pero la calidad se va degradando con el tiempo, lo cual es esperable dado que en inferencia el proceso es completamente autorregresivo y los errores se acumulan. El mapa de error muestra que los contornos de los dígitos son la zona de mayor pérdida, especialmente cuando ambos dígitos se superponen o cuando el movimiento cambia de dirección.
+The model predicts the first frames well (~t=10 to t=12) but quality degrades over time, which is expected since inference is fully autoregressive and errors accumulate. The error map shows that digit edges are the area of highest loss, especially when both digits overlap or when the direction of motion changes.
 
-Las métricas que reporta `--test` sobre el test set son:
+The metrics reported by `--test` on the test set are:
 
-| Métrica | Descripción |
+| Metric | Description |
 |---|---|
-| **Combined Loss** | `α · MSE + (1−α) · (1−SSIM)` — misma loss del entrenamiento |
-| **MAE** | Error absoluto medio sobre todos los píxeles predichos |
-| **MSE** | Error cuadrático medio sobre todos los píxeles predichos |
+| **Combined Loss** | `α · MSE + (1−α) · (1−SSIM)` — same loss used during training |
+| **MAE** | Mean absolute error across all predicted pixels |
+| **MSE** | Mean squared error across all predicted pixels |
