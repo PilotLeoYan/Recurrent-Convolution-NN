@@ -47,12 +47,12 @@
     "activation": "relu"
   },
   "visualize": {
-    "model_type": "cnn",
-    "model_path": "saves/weights_cnn_best.pth",
+    "model_type": "cgru",
+    "model_path": "saves/weights_cgru_best.pth",
     "batch_size": 32,
     "n_workers": 0,
     "split_seq_len": 10,
-    "device": "cpu",
+    "device": "cuda",
     "hidden_channels": 64,
     "kernel_size": 3,
     "units": 3,

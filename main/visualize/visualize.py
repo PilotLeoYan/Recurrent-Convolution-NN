@@ -35,12 +35,9 @@ Config keys (``config.json → "visualize"``)
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
-from typing import Sequence
 
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 import numpy as np
 import torch
 
@@ -202,15 +199,15 @@ def _save_sample_figure(
     Input and prediction lengths can differ, so each row is sized
     independently.  The error row spans only the prediction window.
     """
-    in_len  = inp.shape[0]
+    in_len = inp.shape[0]
     out_len = lbl.shape[0]
-    error   = (pred - lbl).abs()   # (out_len, H, W)
+    error = (pred - lbl).abs()   # (out_len, H, W)
 
     # number of columns = max(in_len, out_len)
     n_cols = max(in_len, out_len)
 
     fig_w = max(n_cols * 1.3, 6.0)
-    fig_h = 4 * 1.5 + 0.6          # 4 rows + title space
+    fig_h = 4 * 1.5 + 0.6 # 4 rows + title space
     fig, axes = plt.subplots(4, n_cols, figsize=(fig_w, fig_h))
 
     # ensure axes is always 2-D
@@ -220,10 +217,10 @@ def _save_sample_figure(
     vmax_err = float(error.max().item()) or 1.0
 
     for row, (frames, length, label, vmin, vmax) in enumerate([
-        (inp,   in_len,  "Input",        0.0, 1.0),
-        (lbl,   out_len, "Ground truth", 0.0, 1.0),
-        (pred,  out_len, "Prediction",   0.0, 1.0),
-        (error, out_len, "|Error|",       0.0, vmax_err),
+        (inp,   in_len,  "Input\n",        0.0, 1.0),
+        (lbl,   out_len, "Ground truth\n", 0.0, 1.0),
+        (pred,  out_len, "Prediction\n",   0.0, 1.0),
+        (error, out_len, "|Error|\n",       0.0, vmax_err),
     ]):
         cmap = colormap if row < 3 else "hot"
 
@@ -233,19 +230,22 @@ def _save_sample_figure(
                 frame = frames[col].numpy()
                 im = ax.imshow(frame, cmap=cmap, vmin=vmin, vmax=vmax,
                                interpolation="nearest")
-                ax.set_title(f"t={col}", fontsize=6, pad=2)
+                ax.set_title(f"t={col + n_cols if row > 0 else 0}", fontsize=8, pad=2)
             else:
                 ax.axis("off")          # blank cell if this row is shorter
             ax.set_xticks([])
             ax.set_yticks([])
 
+            if row == 3: # error row
+                ax.set_xlabel(f'Mean |error|\n= {frames[col].numpy().mean().item():.4f}', fontsize=8)
+
         # row label on the leftmost axis
-        axes[row, 0].set_ylabel(label, fontsize=8, rotation=90,
+        axes[row, 0].set_ylabel(label, fontsize=12, rotation=90,
                                 labelpad=4, va="center")
 
     fig.suptitle(
         f"Inference  |  input={in_len} frames  →  pred={out_len} frames",
-        fontsize=9, y=1.01,
+        fontsize=12, y=1.01,
     )
     fig.tight_layout()
     fig.savefig(path, dpi=dpi, bbox_inches="tight")
