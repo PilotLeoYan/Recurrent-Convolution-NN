@@ -8,6 +8,11 @@ The three implemented models are:
 - **Conv2dGRU (CGRU)** — A full GRU (update gate, reset gate, candidate) implemented with convolutional operations.
 - **CNN** — A recurrence-free baseline. Each frame is processed independently, with no hidden state carried between timesteps.
 
+> [!TIP]
+> You can run a demo in Google colab [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](
+https://colab.research.google.com/github/PilotLeoYan/Recurrent-Convolution-NN//blob/main/RCNN_Colab_Demo.ipynb
+)
+
 ---
 
 ## Table of Contents
