@@ -2,6 +2,7 @@ import sys
 
 from .evaluate import eval_models
 from .train.train import train_models
+from .visualize import visualize_inference
 from .utils.args import create_parser
 from .utils.json_loader import load_config
 from .utils.logger import get_logger, setup_logger
@@ -26,6 +27,8 @@ def main() -> None:
             train_models(args=args["fit"], config=config.get("fit", {}))
         elif args.get("test", False):
             eval_models(config=config.get("eval", {}))
+        elif args.get("visualize", False):
+            visualize_inference(config=config.get("visualize", {}))
         else:
             print('No parameter was selected. Use "python -m main -h" for help.')
 

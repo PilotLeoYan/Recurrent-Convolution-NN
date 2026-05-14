@@ -16,6 +16,9 @@ def create_parser() -> argparse.ArgumentParser:
         choices=('all', 'rcnn', 'cgru', 'cnn'),
         default=None)
 
+    group.add_argument('-v', '--visualize', help='generate inference images from a pretrained model.',
+        action='store_true')
+
     parser.add_argument('-c', '--config', help='pass a diferent config.json path.',
         type=str)
 
